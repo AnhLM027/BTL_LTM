@@ -102,6 +102,7 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
                 case "START_MATCH" -> startMatch(session, message);
                 case "MATCH_READY" -> matchReady(session, message);
                 case "CATCH_EVENT" -> catchEvent(session, message);
+                case "BASKET_MOVE" -> basketMove(session, message);
                 default ->
                         session.send(ProtocolMessage.error("UNKNOWN_MESSAGE", "Unsupported message type: " + message.type()));
             }
@@ -668,6 +669,20 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
                 } catch (IOException ignored) {
                 }
             });
+    }
+
+    private void basketMove(ClientSession session, ProtocolMessage message) throws IOException, ProtocolException, SQLException {
+        long playerId = requirePlayer(session);
+        long currentMatch = parseLong(message.requiredField("matchId"), "matchId");
+        int x = parseInt(message.requiredField("x"), "x");
+        int basketIndex = parseInt(message.fields().getOrDefault("basketIndex", "0"), "basketIndex");
+        if (x < 0 || x > 680 || basketIndex < 0) throw new ProtocolException("Invalid basket position");
+        if (!matchService.participants(currentMatch).contains(playerId)) throw new ProtocolException("Player is not in this match");
+        ProtocolMessage position = new ProtocolMessage("BASKET_POSITION", Map.of(
+                "matchId", Long.toString(currentMatch), "playerId", Long.toString(playerId),
+                "x", Integer.toString(x), "basketIndex", Integer.toString(basketIndex)));
+        for (long participant : matchService.participants(currentMatch))
+            sessions.findPlayer(participant).ifPresent(target -> { try { target.send(position); } catch (IOException ignored) {} });
     }
 
     private void scheduleFinalization(long matchId, int durationSeconds) {

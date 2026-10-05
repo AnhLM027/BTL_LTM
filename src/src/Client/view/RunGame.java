@@ -69,6 +69,9 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
     /** Nutrition mode has no basket-matching rule; keep one fixed basket. */
     private boolean nutritionMode;
     private int basketX = LOGICAL_WIDTH / 2 - BASKET_WIDTH / 2;
+    private int opponentBasketX = LOGICAL_WIDTH / 2 - BASKET_WIDTH / 2;
+    private int opponentBasketIndex;
+    private long opponentPlayerId = -1;
     private boolean resultShown;
     private boolean awaitingResult;
 
@@ -159,6 +162,7 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
                 case "MATCH_PREPARE_END" -> sendReady(message);
                 case "MATCH_START" -> start(message);
                 case "SCORE_UPDATE" -> updateScore(message);
+                case "BASKET_POSITION" -> updateBasketPosition(message);
                 case "CATCH_ACK" -> {
                 }
                 case "OPPONENT_DISCONNECTED" -> {
@@ -199,6 +203,10 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
         awaitingResult = false;
         startedAtMillis = -1;
         basketIndex = 0;
+        basketX = LOGICAL_WIDTH / 2 - BASKET_WIDTH / 2;
+        opponentBasketX = basketX;
+        opponentBasketIndex = 0;
+        opponentPlayerId = -1;
         nutritionMode = message.fields().containsKey("missionLabelId");
         objectiveLabel.setText(nutritionMode
                 ? "Mục tiêu dinh dưỡng: " + message.fields().getOrDefault("missionLabelName", message.requiredField("missionLabelId"))
@@ -229,6 +237,7 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
     private void updateScore(ProtocolMessage message) throws Exception {
         if (longValue(message, "matchId") != matchId) return;
         long playerId = longValue(message, "playerId");
+        if (playerId != localPlayerId) opponentPlayerId = playerId;
         String score = message.requiredField("score");
         if (playerId == localPlayerId) myScoreLabel.setText("Điểm của bạn: " + score);
         else opponentScoreLabel.setText("Đối thủ: " + score);
@@ -265,6 +274,29 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
         // uses one fixed basket purely as the collision area.
         else if (!nutritionMode && keyCode == KeyEvent.VK_UP) basketIndex = (basketIndex + baskets.size() - 1) % baskets.size();
         else if (!nutritionMode && keyCode == KeyEvent.VK_DOWN) basketIndex = (basketIndex + 1) % baskets.size();
+        sendBasketPosition();
+        gamePanel.repaint();
+    }
+
+    private void sendBasketPosition() {
+        if (matchId < 0) return;
+        try {
+            client.send(new ProtocolMessage("BASKET_MOVE", Map.of(
+                    "matchId", Long.toString(matchId),
+                    "x", Integer.toString(basketX),
+                    "basketIndex", Integer.toString(basketIndex))));
+        } catch (IOException exception) {
+            statusLabel.setText("Mất kết nối: " + exception.getMessage());
+        }
+    }
+
+    private void updateBasketPosition(ProtocolMessage message) throws Exception {
+        if (longValue(message, "matchId") != matchId) return;
+        long playerId = longValue(message, "playerId");
+        if (playerId == localPlayerId) return;
+        opponentPlayerId = playerId;
+        opponentBasketX = Math.max(0, Math.min(LOGICAL_WIDTH - BASKET_WIDTH, integer(message, "x")));
+        opponentBasketIndex = Math.max(0, integer(message, "basketIndex"));
         gamePanel.repaint();
     }
 
@@ -343,6 +375,16 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
                 if (y + 38 >= BASKET_Y && x + 38 >= basketX && x <= basketX + BASKET_WIDTH) collisions.add(fruit);
             }
             if (!baskets.isEmpty()) {
+                BasketDefinition opponentBasket = baskets.get(Math.min(opponentBasketIndex, baskets.size() - 1));
+                ImageIcon opponentIcon = asset(opponentBasket.assetPath());
+                if (opponentIcon != null) g.drawImage(opponentIcon.getImage(), opponentBasketX, 54, BASKET_WIDTH, BASKET_HEIGHT, null);
+                else {
+                    g.setColor(new Color(80, 110, 180, 210));
+                    g.fillRoundRect(opponentBasketX, 54, BASKET_WIDTH, BASKET_HEIGHT, 12, 12);
+                }
+                g.setColor(new Color(35, 65, 130));
+                g.drawRoundRect(opponentBasketX, 54, BASKET_WIDTH, BASKET_HEIGHT, 12, 12);
+                g.drawString("Đối thủ", opponentBasketX + 10, 48);
                 BasketDefinition basket = baskets.get(basketIndex);
                 ImageIcon icon = asset(basket.assetPath());
                 if (icon != null) g.drawImage(icon.getImage(), basketX, BASKET_Y, BASKET_WIDTH, BASKET_HEIGHT, null);
@@ -352,6 +394,8 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
                 }
                 g.setColor(Color.BLACK);
                 g.drawRoundRect(basketX, BASKET_Y, BASKET_WIDTH, BASKET_HEIGHT, 12, 12);
+                g.setColor(new Color(20, 80, 50));
+                g.drawString("Bạn", basketX + 10, BASKET_Y - 8);
                 g.drawString(nutritionMode ? "Giỏ hứng" : basket.basketName(), basketX + 7, BASKET_Y + 29);
             }
             g.dispose();
