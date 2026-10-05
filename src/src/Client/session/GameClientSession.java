@@ -44,11 +44,23 @@ public final class GameClientSession implements TcpGameClient.MessageListener, A
 
     public synchronized Identity login(String username, String password) throws Exception {
         if (client.isConnected()) close();
-        client.connect(Constants.IP_SERVER, Constants.PORT);
         CompletableFuture<Identity> future = new CompletableFuture<>();
         pendingLogin = future;
-        client.send(new ProtocolMessage("LOGIN", Map.of("username", username, "password", password)));
         try {
+            IOException lastConnectionError = null;
+            for (int attempt = 1; attempt <= 2; attempt++) {
+                try {
+                    client.connect(Constants.IP_SERVER, Constants.PORT);
+                    lastConnectionError = null;
+                    break;
+                } catch (IOException error) {
+                    lastConnectionError = error;
+                    client.close();
+                    if (attempt < 2) Thread.sleep(250);
+                }
+            }
+            if (lastConnectionError != null) throw lastConnectionError;
+            client.send(new ProtocolMessage("LOGIN", Map.of("username", username, "password", password)));
             return future.get(10, TimeUnit.SECONDS);
         } finally {
             pendingLogin = null;

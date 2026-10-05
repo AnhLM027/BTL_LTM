@@ -488,7 +488,7 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
         filters.add(new JLabel("Dinh dưỡng:")); filters.add(nutritionFilter);
         root.add(filters, BorderLayout.NORTH);
 
-        JPanel grid = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        JPanel grid = new JPanel(new GridBagLayout());
         grid.setOpaque(false);
         JScrollPane scroll = new JScrollPane(grid);
         scroll.setBorder(BorderFactory.createEmptyBorder());
@@ -508,11 +508,27 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
             String nutrition = (String) nutritionFilter.getSelectedItem();
             grid.removeAll();
             int count = 0;
+            int cardIndex = 0;
             for (FruitCatalogItem fruit : fruitCatalog) {
                 boolean groupMatches = "Tất cả nhóm".equals(group) || group.equals(fruit.groupName());
                 boolean nutritionMatches = "Tất cả dinh dưỡng".equals(nutrition)
                         || Arrays.stream(fruit.nutritionLabels().split("\\s*,\\s*")).anyMatch(n -> n.trim().equals(nutrition));
-                if (groupMatches && nutritionMatches) { addFruitCard(grid, fruit); count++; }
+                if (groupMatches && nutritionMatches) {
+                    // Insert each card into a fixed four-column GridBag grid.
+                    // This wraps rows instead of creating a horizontal strip.
+                    int before = grid.getComponentCount();
+                    addFruitCard(grid, fruit);
+                    Component card = grid.getComponent(before);
+                    grid.remove(card);
+                    GridBagConstraints constraints = new GridBagConstraints();
+                    constraints.gridx = cardIndex % 4;
+                    constraints.gridy = cardIndex / 4;
+                    constraints.insets = new Insets(5, 5, 5, 5);
+                    constraints.anchor = GridBagConstraints.NORTHWEST;
+                    grid.add(card, constraints);
+                    cardIndex++;
+                    count++;
+                }
             }
             empty.setVisible(count == 0);
             grid.revalidate(); grid.repaint();

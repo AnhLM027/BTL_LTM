@@ -41,14 +41,15 @@ public class MainScreen {
         // Center panel: logo + title
         JPanel centerPanel = new JPanel(new BorderLayout(0, 8));
         centerPanel.setOpaque(false);
+        centerPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 28, 0));
         ImageIcon logoIcon = AssetLoader.icon("logo/logo-fruit-basket.png");
         if (logoIcon != null) {
-            JLabel logoLabel = new JLabel(AssetLoader.scaleToFit(logoIcon, 130, 130), SwingConstants.CENTER);
+            JLabel logoLabel = new JLabel(AssetLoader.scaleToFit(logoIcon, 180, 180), SwingConstants.CENTER);
             centerPanel.add(logoLabel, BorderLayout.CENTER);
         }
         JLabel titleLabel = new JLabel("Hứng Hoa Quả", SwingConstants.CENTER);
         titleLabel.setFont(customFont != null ? customFont.deriveFont(Font.BOLD, 30f) : new Font("Serif", Font.BOLD, 30));
-        titleLabel.setForeground(Color.WHITE);
+        titleLabel.setForeground(new Color(17, 83, 54));
         centerPanel.add(titleLabel, BorderLayout.SOUTH);
         backgroundLabel.add(centerPanel, BorderLayout.CENTER);
 
@@ -76,6 +77,7 @@ public class MainScreen {
         JPanel buttonPanel = new JPanel();
         buttonPanel.setOpaque(false); // Make panel transparent to show background
         buttonPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 20, 20)); // Center buttons with spacing
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 42, 0));
         buttonPanel.add(btnLogin);
         buttonPanel.add(btnRegister);
 
