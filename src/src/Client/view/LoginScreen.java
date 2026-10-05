@@ -48,7 +48,7 @@ public class LoginScreen {
             titleLabel = new JLabel("Đăng nhập", JLabel.CENTER);
         }
         titleLabel.setFont(customFont.deriveFont(Font.BOLD, 22f));
-        titleLabel.setForeground(Color.WHITE);
+        titleLabel.setForeground(new Color(17, 83, 54));
         panel.add(titleLabel, gbc);
 
         // --- Username row: [icon] [label] [field] ---
@@ -59,7 +59,7 @@ public class LoginScreen {
         gbc.gridx = 1;
         JLabel usernameLabel = new JLabel("Tên đăng nhập:");
         usernameLabel.setFont(customFont.deriveFont(Font.PLAIN, 15f));
-        usernameLabel.setForeground(Color.WHITE);
+        usernameLabel.setForeground(new Color(17, 83, 54));
         panel.add(usernameLabel, gbc);
 
         gbc.gridx = 2;
@@ -75,7 +75,7 @@ public class LoginScreen {
         gbc.gridx = 1;
         JLabel passwordLabel = new JLabel("Mật khẩu:");
         passwordLabel.setFont(customFont.deriveFont(Font.PLAIN, 15f));
-        passwordLabel.setForeground(Color.WHITE);
+        passwordLabel.setForeground(new Color(17, 83, 54));
         panel.add(passwordLabel, gbc);
 
         gbc.gridx = 2;

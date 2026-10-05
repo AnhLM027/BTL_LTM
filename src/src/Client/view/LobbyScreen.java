@@ -68,7 +68,7 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
 
         roomStatus.setFont(new Font("Arial", Font.BOLD, 14));
         roomStatus.setText("FRUIT BATTLE ONLINE");
-        roomStatus.setForeground(Color.WHITE);
+        roomStatus.setForeground(new Color(17, 83, 54));
         header.add(roomStatus, BorderLayout.CENTER);
 
         // Connection online icon (top-right)
@@ -113,7 +113,7 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
         JPanel modePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         modePanel.setOpaque(false);
         JLabel modeLbl = new JLabel("Mode:");
-        modeLbl.setForeground(Color.WHITE);
+        modeLbl.setForeground(new Color(17, 83, 54));
         modeLbl.setFont(new Font("Arial", Font.BOLD, 13));
         modePanel.add(modeLbl);
         modePanel.add(modeImgLabel);
@@ -305,6 +305,7 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
         card.setOpaque(true);
         card.setBackground(new Color(255, 255, 255, 205));
         card.setBorder(BorderFactory.createLineBorder(new Color(75, 140, 95), 1));
+        card.setPreferredSize(new Dimension(150, 150));
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         ImageIcon icon = AssetLoader.icon(asset);
         JLabel image = new JLabel(icon == null ? new ImageIcon() : AssetLoader.scaleToFit(icon, 58, 58));
@@ -487,7 +488,7 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
         filters.add(new JLabel("Dinh dưỡng:")); filters.add(nutritionFilter);
         root.add(filters, BorderLayout.NORTH);
 
-        JPanel grid = new JPanel(new GridLayout(0, 4, 10, 10));
+        JPanel grid = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
         grid.setOpaque(false);
         JScrollPane scroll = new JScrollPane(grid);
         scroll.setBorder(BorderFactory.createEmptyBorder());
