@@ -90,6 +90,9 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
                 case "ADMIN_CREATE_ACCOUNT" -> createAdminAccount(session, message);
                 case "ADMIN_DELETE_ACCOUNT" -> deleteAdminAccount(session, message);
                 case "ADMIN_UPDATE_ACCOUNT" -> updateAdminAccount(session, message);
+                case "ADMIN_CREATE_FRUIT" -> createAdminFruit(session, message);
+                case "ADMIN_UPDATE_FRUIT" -> updateAdminFruit(session, message);
+                case "ADMIN_DELETE_FRUIT" -> deleteAdminFruit(session, message);
                 case "CREATE_ROOM" -> createRoom(session, message);
                 case "LEAVE_ROOM" -> leaveRoom(session, message);
                 case "CHANGE_GAME_MODE" -> changeGameMode(session, message);
@@ -338,6 +341,26 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
         session.send(ProtocolMessage.of("ADMIN_ACCOUNT_UPDATED"));
     }
 
+    private void createAdminFruit(ClientSession session, ProtocolMessage message) throws IOException, ProtocolException, SQLException {
+        requireAdmin(session);
+        int id = fruitRepository.create(parseInt(message.requiredField("groupId"), "groupId"), message.requiredField("fruitCode"),
+                message.requiredField("fruitName"), message.fields().getOrDefault("description", ""), message.fields().getOrDefault("assetPath", ""));
+        session.send(new ProtocolMessage("ADMIN_FRUIT_CREATED", Map.of("fruitId", Integer.toString(id))));
+    }
+
+    private void updateAdminFruit(ClientSession session, ProtocolMessage message) throws IOException, ProtocolException, SQLException {
+        requireAdmin(session);
+        fruitRepository.update(parseInt(message.requiredField("fruitId"), "fruitId"), parseInt(message.requiredField("groupId"), "groupId"),
+                message.requiredField("fruitCode"), message.requiredField("fruitName"), message.fields().getOrDefault("description", ""), message.fields().getOrDefault("assetPath", ""));
+        session.send(ProtocolMessage.of("ADMIN_FRUIT_UPDATED"));
+    }
+
+    private void deleteAdminFruit(ClientSession session, ProtocolMessage message) throws IOException, ProtocolException, SQLException {
+        requireAdmin(session);
+        fruitRepository.delete(parseInt(message.requiredField("fruitId"), "fruitId"));
+        session.send(ProtocolMessage.of("ADMIN_FRUIT_DELETED"));
+    }
+
     private void createRoom(ClientSession session, ProtocolMessage message)
             throws IOException, ProtocolException, SQLException, RoomException {
         MatchRoom room = roomService.createRoom(requirePlayer(session), parseMode(message.requiredField("modeCode")));
@@ -522,6 +545,11 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
         } catch (NumberFormatException exception) {
             throw new ProtocolException("Invalid " + fieldName);
         }
+    }
+
+    private int parseInt(String value, String fieldName) throws ProtocolException {
+        try { return Integer.parseInt(value); }
+        catch (NumberFormatException exception) { throw new ProtocolException("Invalid " + fieldName); }
     }
 
     private void startMatch(ClientSession session, ProtocolMessage message) throws IOException, ProtocolException, SQLException, RoomException {

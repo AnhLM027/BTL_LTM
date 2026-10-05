@@ -469,12 +469,61 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
     }
 
     private void showAllFruits() {
-        int columns = 4;
-        int rows = Math.max(1, (fruitCatalog.size() + columns - 1) / columns);
-        JPanel grid = new JPanel(new GridLayout(rows, columns, 10, 10));
+        JDialog dialog = new JDialog(this, "Tất cả hoa quả", true);
+        JPanel root = new JPanel(new BorderLayout(10, 10));
+        root.setBackground(new Color(255, 252, 239));
+        root.setBorder(BorderFactory.createEmptyBorder(14, 14, 12, 14));
+
+        JComboBox<String> groupFilter = new JComboBox<>();
+        JComboBox<String> nutritionFilter = new JComboBox<>();
+        groupFilter.addItem("Tất cả nhóm");
+        fruitCatalog.stream().map(FruitCatalogItem::groupName).filter(s -> s != null && !s.isBlank()).distinct().sorted().forEach(groupFilter::addItem);
+        nutritionFilter.addItem("Tất cả dinh dưỡng");
+        fruitCatalog.stream().flatMap(f -> Arrays.stream(f.nutritionLabels().split("\\s*,\\s*")))
+                .map(String::trim).filter(s -> !s.isBlank()).distinct().sorted().forEach(nutritionFilter::addItem);
+        JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        filters.setOpaque(false);
+        filters.add(new JLabel("Nhóm:")); filters.add(groupFilter);
+        filters.add(new JLabel("Dinh dưỡng:")); filters.add(nutritionFilter);
+        root.add(filters, BorderLayout.NORTH);
+
+        JPanel grid = new JPanel(new GridLayout(0, 4, 10, 10));
         grid.setOpaque(false);
-        fruitCatalog.forEach(fruit -> addFruitCard(grid, fruit));
-        showStyledDialog("Tất cả hoa quả", grid, 680, 560);
+        JScrollPane scroll = new JScrollPane(grid);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        root.add(scroll, BorderLayout.CENTER);
+
+        JLabel empty = new JLabel("Không có hoa quả phù hợp", SwingConstants.CENTER);
+        empty.setForeground(new Color(70, 90, 70));
+        JPanel footer = new JPanel(new BorderLayout()); footer.setOpaque(false); footer.add(empty, BorderLayout.CENTER);
+        JButton close = buildBtn("Đóng", new Color(30, 110, 85));
+        close.addActionListener(e -> dialog.dispose());
+        JPanel closePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT)); closePanel.setOpaque(false); closePanel.add(close); footer.add(closePanel, BorderLayout.EAST);
+        root.add(footer, BorderLayout.SOUTH);
+
+        Runnable refresh = () -> {
+            String group = (String) groupFilter.getSelectedItem();
+            String nutrition = (String) nutritionFilter.getSelectedItem();
+            grid.removeAll();
+            int count = 0;
+            for (FruitCatalogItem fruit : fruitCatalog) {
+                boolean groupMatches = "Tất cả nhóm".equals(group) || group.equals(fruit.groupName());
+                boolean nutritionMatches = "Tất cả dinh dưỡng".equals(nutrition)
+                        || Arrays.stream(fruit.nutritionLabels().split("\\s*,\\s*")).anyMatch(n -> n.trim().equals(nutrition));
+                if (groupMatches && nutritionMatches) { addFruitCard(grid, fruit); count++; }
+            }
+            empty.setVisible(count == 0);
+            grid.revalidate(); grid.repaint();
+        };
+        groupFilter.addActionListener(e -> refresh.run());
+        nutritionFilter.addActionListener(e -> refresh.run());
+        refresh.run();
+
+        dialog.setContentPane(root);
+        dialog.setSize(760, 600);
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
     }
 
     private void showStyledDialog(String title, JComponent content, int width, int height) {

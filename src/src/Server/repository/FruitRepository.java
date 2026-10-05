@@ -56,4 +56,28 @@ public final class FruitRepository {
             return entries;
         }
     }
+
+    public int create(int groupId, String code, String name, String description, String assetPath) throws SQLException {
+        String sql = "INSERT INTO fruit(group_id,fruit_code,fruit_name,description,default_asset_path,is_active) VALUES (?,?,?,?,?,TRUE)";
+        try (Connection c = DatabaseConfig.openConnection(); PreparedStatement s = c.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS)) {
+            s.setInt(1, groupId); s.setString(2, code); s.setString(3, name);
+            s.setString(4, description); s.setString(5, assetPath);
+            s.executeUpdate();
+            try (ResultSet keys = s.getGeneratedKeys()) { if (!keys.next()) throw new SQLException("Missing fruit id"); return keys.getInt(1); }
+        }
+    }
+
+    public void update(int fruitId, int groupId, String code, String name, String description, String assetPath) throws SQLException {
+        String sql = "UPDATE fruit SET group_id=?,fruit_code=?,fruit_name=?,description=?,default_asset_path=? WHERE fruit_id=? AND is_active=TRUE";
+        try (Connection c = DatabaseConfig.openConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setInt(1, groupId); s.setString(2, code); s.setString(3, name); s.setString(4, description); s.setString(5, assetPath); s.setInt(6, fruitId);
+            if (s.executeUpdate() != 1) throw new SQLException("Fruit was not found");
+        }
+    }
+
+    public void delete(int fruitId) throws SQLException {
+        try (Connection c = DatabaseConfig.openConnection(); PreparedStatement s = c.prepareStatement("UPDATE fruit SET is_active=FALSE WHERE fruit_id=?")) {
+            s.setInt(1, fruitId); if (s.executeUpdate() != 1) throw new SQLException("Fruit was not found");
+        }
+    }
 }
