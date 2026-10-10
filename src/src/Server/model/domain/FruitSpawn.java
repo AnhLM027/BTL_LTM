@@ -3,9 +3,11 @@ package Server.model.domain;
 public record FruitSpawn(
         long fruitInstanceId,
         long matchId,
-        int fruitId,
+        Integer fruitId,
+        boolean isBomb,
         int spawnOrder,
         long spawnOffsetMs,
-        int xPosition
+        int xPosition,
+        int fallDurationMs
 ) {
 }

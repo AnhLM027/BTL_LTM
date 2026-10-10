@@ -48,6 +48,7 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
     private final RoomRepository roomRepository = new RoomRepository();
     private final ScheduledExecutorService matchScheduler = Executors.newSingleThreadScheduledExecutor();
     private final ConcurrentHashMap<Long, ScheduledFuture<?>> disconnectGrace = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, ConcurrentHashMap<Long, Integer>> comboState = new ConcurrentHashMap<>();
 
     public GameServerEventHandler(SessionRegistry sessions, AuthService authService, PlayerRepository playerRepository,
                                   RoomService roomService, MatchService matchService) {
@@ -102,7 +103,6 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
                 case "START_MATCH" -> startMatch(session, message);
                 case "MATCH_READY" -> matchReady(session, message);
                 case "CATCH_EVENT" -> catchEvent(session, message);
-                case "BASKET_MOVE" -> basketMove(session, message);
                 default ->
                         session.send(ProtocolMessage.error("UNKNOWN_MESSAGE", "Unsupported message type: " + message.type()));
             }
@@ -560,13 +560,11 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
         java.util.LinkedHashMap<String, String> preparationFields = new java.util.LinkedHashMap<>();
         preparationFields.put("matchId", Long.toString(prep.match().matchId()));
         preparationFields.put("modeId", Integer.toString(prep.match().modeId()));
+        preparationFields.put("modeCode", gameModeRepository.findById(prep.match().modeId()).orElseThrow().modeCode().name());
         preparationFields.put("seed", Long.toString(prep.match().seed()));
         preparationFields.put("durationSeconds", "30");
-        if (prep.missionLabel() != null) {
-            preparationFields.put("missionLabelId", Integer.toString(prep.missionLabel().labelId()));
-            preparationFields.put("missionLabelCode", prep.missionLabel().labelCode());
-            preparationFields.put("missionLabelName", prep.missionLabel().displayName());
-        }
+        for (int index = 0; index < prep.targetFruitIds().size(); index++)
+            preparationFields.put("targetFruitId_" + (index + 1), Integer.toString(prep.targetFruitIds().get(index)));
         ProtocolMessage header = new ProtocolMessage("MATCH_PREPARE", preparationFields);
         for (long id : List.of(prep.hostPlayerId(), prep.guestPlayerId()))
             sessions.findPlayer(id).ifPresent(target -> {
@@ -574,10 +572,8 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
                     target.send(header);
                     for (var fruit : prep.fruits())
                         target.send(new ProtocolMessage("FRUIT_CONFIG", Map.of("fruitId", Integer.toString(fruit.fruitId()), "groupId", Integer.toString(fruit.groupId()), "fruitCode", fruit.fruitCode(), "fruitName", fruit.fruitName(), "assetPath", fruit.defaultAssetPath() == null ? "" : fruit.defaultAssetPath())));
-                    for (var basket : prep.baskets())
-                        target.send(new ProtocolMessage("BASKET_CONFIG", Map.of("basketId", Integer.toString(basket.basketId()), "groupId", Integer.toString(basket.groupId()), "basketName", basket.basketName(), "assetPath", basket.assetPath() == null ? "" : basket.assetPath())));
-                    for (var spawn : prep.spawns())
-                        target.send(new ProtocolMessage("FRUIT_SPAWN", Map.of("matchId", Long.toString(prep.match().matchId()), "fruitInstanceId", Long.toString(spawn.fruitInstanceId()), "fruitId", Integer.toString(spawn.fruitId()), "spawnOffsetMs", Long.toString(spawn.spawnOffsetMs()), "xPosition", Integer.toString(spawn.xPosition()))));
+                    for (var basket : prep.baskets()) target.send(basketMessage(basket));
+                    for (var spawn : prep.spawns()) target.send(spawnMessage(prep.match().matchId(), spawn));
                     target.send(new ProtocolMessage("MATCH_PREPARE_END", Map.of("matchId", Long.toString(prep.match().matchId()))));
                 } catch (IOException ignored) {
                 }
@@ -609,15 +605,22 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
             return;
         }
         session.send(new ProtocolMessage("MATCH_REJOIN", Map.of("matchId", Long.toString(prep.match().matchId()), "remainingMs", Long.toString(remaining))));
+        java.util.LinkedHashMap<String, String> preparationFields = new java.util.LinkedHashMap<>();
+        preparationFields.put("matchId", Long.toString(prep.match().matchId()));
+        preparationFields.put("modeId", Integer.toString(prep.match().modeId()));
+        preparationFields.put("modeCode", gameModeRepository.findById(prep.match().modeId()).orElseThrow().modeCode().name());
+        preparationFields.put("seed", Long.toString(prep.match().seed()));
+        preparationFields.put("durationSeconds", Integer.toString(prep.match().durationSeconds()));
+        for (int index = 0; index < prep.targetFruitIds().size(); index++)
+            preparationFields.put("targetFruitId_" + (index + 1), Integer.toString(prep.targetFruitIds().get(index)));
+        session.send(new ProtocolMessage("MATCH_PREPARE", preparationFields));
         for (var fruit : prep.fruits())
             session.send(new ProtocolMessage("FRUIT_CONFIG", Map.of("fruitId", Integer.toString(fruit.fruitId()), "groupId", Integer.toString(fruit.groupId()), "fruitCode", fruit.fruitCode(), "fruitName", fruit.fruitName(), "assetPath", fruit.defaultAssetPath() == null ? "" : fruit.defaultAssetPath())));
-        for (var basket : prep.baskets())
-            session.send(new ProtocolMessage("BASKET_CONFIG", Map.of("basketId", Integer.toString(basket.basketId()), "groupId", Integer.toString(basket.groupId()), "basketName", basket.basketName(), "assetPath", basket.assetPath() == null ? "" : basket.assetPath())));
-        for (var spawn : prep.spawns())
-            session.send(new ProtocolMessage("FRUIT_SPAWN", Map.of("matchId", Long.toString(prep.match().matchId()), "fruitInstanceId", Long.toString(spawn.fruitInstanceId()), "fruitId", Integer.toString(spawn.fruitId()), "spawnOffsetMs", Long.toString(spawn.spawnOffsetMs()), "xPosition", Integer.toString(spawn.xPosition()))));
+        for (var basket : prep.baskets()) session.send(basketMessage(basket));
+        for (var spawn : prep.spawns()) session.send(spawnMessage(prep.match().matchId(), spawn));
         session.send(new ProtocolMessage("MATCH_START", Map.of("matchId", Long.toString(prep.match().matchId()), "startedAt", prep.match().startedAt().toString(), "durationSeconds", Integer.toString(prep.match().durationSeconds()))));
         for (var score : matchService.scores(prep.match().matchId()))
-            session.send(new ProtocolMessage("SCORE_UPDATE", Map.of("matchId", Long.toString(prep.match().matchId()), "playerId", Long.toString(score.playerId()), "score", Integer.toString(score.finalScore()), "correctCount", Integer.toString(score.correctCount()), "wrongCount", Integer.toString(score.wrongCount()))));
+            session.send(new ProtocolMessage("SCORE_UPDATE", Map.of("matchId", Long.toString(prep.match().matchId()), "playerId", Long.toString(score.playerId()), "score", Integer.toString(score.finalScore()), "correctCount", Integer.toString(score.correctCount()), "wrongCount", Integer.toString(score.wrongCount()), "comboCount", "0", "comboBonus", "0")));
     }
 
     private void sendMatchResult(ClientSession target, MatchFinalization finalization,
@@ -658,10 +661,17 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
 
     private void catchEvent(ClientSession session, ProtocolMessage message) throws IOException, ProtocolException, SQLException, RoomException {
         ScoreUpdate score = matchService.catchFruit(requirePlayer(session), parseLong(message.requiredField("matchId"), "matchId"), parseLong(message.requiredField("fruitInstanceId"), "fruitInstanceId"), Integer.parseInt(message.requiredField("basketId")));
+        ConcurrentHashMap<Long, Integer> matchCombo = comboState.computeIfAbsent(score.matchId(), ignored -> new ConcurrentHashMap<>());
+        int combo = score.wasCorrect() ? matchCombo.getOrDefault(score.playerId(), 0) + 1 : 0;
+        int bonus = combo >= 5 ? 10 : 0;
+        if (bonus > 0) combo = 0;
+        matchCombo.put(score.playerId(), combo);
+        if (bonus > 0) score = matchService.applyComboBonus(score, bonus, combo);
+        else score = new ScoreUpdate(score.matchId(), score.playerId(), score.score(), score.correctCount(), score.wrongCount(), score.wasCorrect(), combo, 0);
         ServerLog.info("Catch accepted: match=" + score.matchId() + ", player=" + score.playerId()
                 + ", fruitInstance=" + message.requiredField("fruitInstanceId") + ", score=" + score.score());
         session.send(new ProtocolMessage("CATCH_ACK", Map.of("matchId", Long.toString(score.matchId()), "fruitInstanceId", message.requiredField("fruitInstanceId"), "accepted", "true")));
-        ProtocolMessage update = new ProtocolMessage("SCORE_UPDATE", Map.of("matchId", Long.toString(score.matchId()), "playerId", Long.toString(score.playerId()), "score", Integer.toString(score.score()), "correctCount", Integer.toString(score.correctCount()), "wrongCount", Integer.toString(score.wrongCount())));
+        ProtocolMessage update = scoreMessage(score);
         for (long playerId : matchService.participants(score.matchId()))
             sessions.findPlayer(playerId).ifPresent(target -> {
                 try {
@@ -671,18 +681,34 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
             });
     }
 
-    private void basketMove(ClientSession session, ProtocolMessage message) throws IOException, ProtocolException, SQLException {
-        long playerId = requirePlayer(session);
-        long currentMatch = parseLong(message.requiredField("matchId"), "matchId");
-        int x = parseInt(message.requiredField("x"), "x");
-        int basketIndex = parseInt(message.fields().getOrDefault("basketIndex", "0"), "basketIndex");
-        if (x < 0 || x > 680 || basketIndex < 0) throw new ProtocolException("Invalid basket position");
-        if (!matchService.participants(currentMatch).contains(playerId)) throw new ProtocolException("Player is not in this match");
-        ProtocolMessage position = new ProtocolMessage("BASKET_POSITION", Map.of(
-                "matchId", Long.toString(currentMatch), "playerId", Long.toString(playerId),
-                "x", Integer.toString(x), "basketIndex", Integer.toString(basketIndex)));
-        for (long participant : matchService.participants(currentMatch))
-            sessions.findPlayer(participant).ifPresent(target -> { try { target.send(position); } catch (IOException ignored) {} });
+    private ProtocolMessage basketMessage(Server.model.domain.Basket basket) {
+        return new ProtocolMessage("BASKET_CONFIG", Map.of(
+                "basketId", Integer.toString(basket.basketId()),
+                "basketName", basket.basketName(),
+                "assetPath", basket.assetPath() == null ? "" : basket.assetPath()));
+    }
+
+    private ProtocolMessage spawnMessage(long matchId, Server.model.domain.FruitSpawn spawn) {
+        java.util.LinkedHashMap<String, String> fields = new java.util.LinkedHashMap<>();
+        fields.put("matchId", Long.toString(matchId));
+        fields.put("fruitInstanceId", Long.toString(spawn.fruitInstanceId()));
+        fields.put("isBomb", Boolean.toString(spawn.isBomb()));
+        fields.put("spawnOffsetMs", Long.toString(spawn.spawnOffsetMs()));
+        fields.put("xPosition", Integer.toString(spawn.xPosition()));
+        fields.put("fallDurationMs", Integer.toString(spawn.fallDurationMs()));
+        if (spawn.fruitId() != null) fields.put("fruitId", Integer.toString(spawn.fruitId()));
+        return new ProtocolMessage("FRUIT_SPAWN", fields);
+    }
+
+    private ProtocolMessage scoreMessage(ScoreUpdate score) {
+        return new ProtocolMessage("SCORE_UPDATE", Map.of(
+                "matchId", Long.toString(score.matchId()),
+                "playerId", Long.toString(score.playerId()),
+                "score", Integer.toString(score.score()),
+                "correctCount", Integer.toString(score.correctCount()),
+                "wrongCount", Integer.toString(score.wrongCount()),
+                "comboCount", Integer.toString(score.comboCount()),
+                "comboBonus", Integer.toString(score.comboBonus())));
     }
 
     private void scheduleFinalization(long matchId, int durationSeconds) {
@@ -713,6 +739,7 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
                     });
                 }
                 broadcastOnlinePlayers();
+                comboState.remove(matchId);
             } catch (SQLException | RoomException exception) {
                 ServerLog.error("Could not finalize match " + matchId, exception);
             }

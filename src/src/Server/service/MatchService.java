@@ -15,7 +15,6 @@ import Server.repository.BasketRepository;
 import Server.repository.FruitRepository;
 import Server.repository.GameModeRepository;
 import Server.repository.MatchRepository;
-import Server.repository.NutritionLabelRepository;
 import Server.repository.RoomRepository;
 
 import java.sql.Connection;
@@ -33,22 +32,20 @@ public final class MatchService {
     private final FruitRepository fruits;
     private final GameModeRepository modes;
     private final CatchEventRepository catches;
-    private final NutritionLabelRepository nutritionLabels;
     private final BasketRepository baskets;
 
     public MatchService(RoomRepository rooms, MatchRepository matches, FruitRepository fruits,
                         GameModeRepository modes, CatchEventRepository catches) {
-        this(rooms, matches, fruits, modes, catches, new NutritionLabelRepository(), new BasketRepository());
+        this(rooms, matches, fruits, modes, catches, new BasketRepository());
     }
 
     MatchService(RoomRepository rooms, MatchRepository matches, FruitRepository fruits,
-                 GameModeRepository modes, CatchEventRepository catches, NutritionLabelRepository nutritionLabels, BasketRepository baskets) {
+                 GameModeRepository modes, CatchEventRepository catches, BasketRepository baskets) {
         this.rooms = rooms;
         this.matches = matches;
         this.fruits = fruits;
         this.modes = modes;
         this.catches = catches;
-        this.nutritionLabels = nutritionLabels;
         this.baskets = baskets;
     }
 
@@ -61,6 +58,20 @@ public final class MatchService {
                 connection.commit();
                 return score;
             } catch (SQLException | RoomException exception) {
+                connection.rollback();
+                throw exception;
+            }
+        }
+    }
+
+    public ScoreUpdate applyComboBonus(ScoreUpdate score, int bonus, int comboCount) throws SQLException {
+        try (Connection connection = DatabaseConfig.openConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                ScoreUpdate updated = catches.applyComboBonus(connection, score, bonus, comboCount);
+                connection.commit();
+                return updated;
+            } catch (SQLException exception) {
                 connection.rollback();
                 throw exception;
             }
@@ -84,7 +95,9 @@ public final class MatchService {
             var match = matches.findActiveForPlayer(connection, playerId);
             if (match.isEmpty()) return java.util.Optional.empty();
             MatchRoom room = rooms.findById(connection, match.get().roomId(), false).orElseThrow();
-            return java.util.Optional.of(new MatchPreparation(match.get(), room.hostPlayerId(), room.guestPlayerId(), matches.findSpawns(connection, match.get().matchId()), fruits.findActive(), baskets.findActive(), match.get().missionLabelId() == null ? null : nutritionLabels.findById(match.get().missionLabelId())));
+            return java.util.Optional.of(new MatchPreparation(match.get(), room.hostPlayerId(), room.guestPlayerId(),
+                    matches.findSpawns(connection, match.get().matchId()), fruits.findActive(), baskets.findActive(),
+                    matches.findTargetFruits(connection, match.get().matchId())));
         }
     }
 
@@ -107,21 +120,17 @@ public final class MatchService {
                 }
                 GameModeCode mode = modes.findById(room.modeId())
                         .orElseThrow(() -> new RoomException("Game mode was not found")).modeCode();
-                Integer missionLabelId = mode == GameModeCode.NUTRITION
-                        ? nutritionLabels.findRandomActiveId(connection) : null;
                 long seed = new Random().nextLong();
                 Random random = new Random(seed);
-                List<FruitSpawn> spawns = new ArrayList<>();
-                for (int index = 0; index < 20; index++) {
-                    Fruit fruit = catalog.get(random.nextInt(catalog.size()));
-                    spawns.add(new FruitSpawn(0, 0, fruit.fruitId(), index, index * 1_400L,
-                            50 + random.nextInt(701)));
-                }
-                GameMatch match = matches.create(connection, roomId, room.modeId(), missionLabelId,
-                        seed, hostPlayerId, room.guestPlayerId(), spawns);
+                List<Integer> targetFruitIds = mode == GameModeCode.ORDER ? chooseTargets(catalog, random) : List.of();
+                List<FruitSpawn> spawns = mode == GameModeCode.CLASSIC
+                        ? classicSpawns(catalog, random) : orderSpawns(catalog, targetFruitIds, random);
+                GameMatch match = matches.create(connection, roomId, room.modeId(), seed, hostPlayerId,
+                        room.guestPlayerId(), spawns, targetFruitIds);
                 List<FruitSpawn> persisted = matches.findSpawns(connection, match.matchId());
                 connection.commit();
-                return new MatchPreparation(match, room.hostPlayerId(), room.guestPlayerId(), persisted, catalog, baskets.findActive(), missionLabelId == null ? null : nutritionLabels.findById(missionLabelId));
+                return new MatchPreparation(match, room.hostPlayerId(), room.guestPlayerId(), persisted, catalog,
+                        baskets.findActive(), targetFruitIds);
             } catch (SQLException | RoomException exception) {
                 connection.rollback();
                 throw exception;
@@ -201,5 +210,57 @@ public final class MatchService {
 
     private MatchResult opposite(MatchResult result) {
         return result == MatchResult.WIN ? MatchResult.LOSE : result == MatchResult.LOSE ? MatchResult.WIN : MatchResult.DRAW;
+    }
+
+    private List<Integer> chooseTargets(List<Fruit> catalog, Random random) throws RoomException {
+        if (catalog.size() < 3) throw new RoomException("ORDER requires at least three active fruits");
+        List<Fruit> shuffled = new ArrayList<>(catalog);
+        java.util.Collections.shuffle(shuffled, random);
+        return shuffled.subList(0, 3).stream().map(Fruit::fruitId).toList();
+    }
+
+    private List<FruitSpawn> classicSpawns(List<Fruit> catalog, Random random) {
+        java.util.Map<Integer, Integer> bombs = new java.util.HashMap<>();
+        while (bombs.size() < 4) {
+            int candidate = random.nextInt(20);
+            long lateBombs = bombs.keySet().stream().filter(slot -> slot >= 15).count();
+            if (candidate >= 15 && lateBombs >= 2) continue;
+            if (bombs.keySet().stream().anyMatch(slot -> Math.abs(slot - candidate) < 2)) continue;
+            int x = 50 + random.nextInt(701);
+            boolean blocksSafeLane = bombs.entrySet().stream().anyMatch(existing ->
+                    Math.abs(existing.getKey() - candidate) * 1_400L < 3_000L
+                            && Math.abs(existing.getValue() - x) < 150);
+            if (blocksSafeLane) continue;
+            bombs.put(candidate, x);
+        }
+        List<FruitSpawn> spawns = new ArrayList<>();
+        for (int index = 0; index < 20; index++) {
+            long offset = index * 1_400L;
+            boolean bomb = bombs.containsKey(index);
+            Fruit fruit = bomb ? null : catalog.get(random.nextInt(catalog.size()));
+            spawns.add(new FruitSpawn(0, 0, fruit == null ? null : fruit.fruitId(), bomb, index, offset,
+                    bomb ? bombs.get(index) : 50 + random.nextInt(701), fallDuration(offset)));
+        }
+        return spawns;
+    }
+
+    private List<FruitSpawn> orderSpawns(List<Fruit> catalog, List<Integer> targets, Random random) {
+        List<Integer> source = new ArrayList<>();
+        for (int i = 0; i < 12; i++) source.add(targets.get(random.nextInt(targets.size())));
+        List<Integer> nonTargets = catalog.stream().map(Fruit::fruitId).filter(id -> !targets.contains(id)).toList();
+        for (int i = 0; i < 8; i++) source.add(nonTargets.isEmpty()
+                ? targets.get(random.nextInt(targets.size())) : nonTargets.get(random.nextInt(nonTargets.size())));
+        java.util.Collections.shuffle(source, random);
+        List<FruitSpawn> spawns = new ArrayList<>();
+        for (int index = 0; index < 20; index++) {
+            long offset = index * 1_400L;
+            spawns.add(new FruitSpawn(0, 0, source.get(index), false, index, offset,
+                    50 + random.nextInt(701), fallDuration(offset)));
+        }
+        return spawns;
+    }
+
+    private int fallDuration(long spawnOffsetMs) {
+        return spawnOffsetMs < 20_000 ? 4_000 : 2_500;
     }
 }

@@ -43,7 +43,7 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
     private final TcpGameClient client;
     private final long localPlayerId;
     private final Map<Integer, FruitDefinition> fruits = new HashMap<>();
-    private final List<BasketDefinition> baskets = new ArrayList<>();
+    private BasketDefinition basket;
     private final List<FruitInstance> scheduledSpawns = new ArrayList<>();
     private final List<FruitInstance> activeFruits = new ArrayList<>();
     private final Set<Long> submittedCatches = new HashSet<>();
@@ -65,13 +65,10 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
     private long matchId = -1;
     private int durationSeconds = 30;
     private long startedAtMillis = -1;
-    private int basketIndex;
-    /** Nutrition mode has no basket-matching rule; keep one fixed basket. */
-    private boolean nutritionMode;
+    private boolean orderMode;
+    private final List<Integer> targetFruitIds = new ArrayList<>();
+    private int comboCount;
     private int basketX = LOGICAL_WIDTH / 2 - BASKET_WIDTH / 2;
-    private int opponentBasketX = LOGICAL_WIDTH / 2 - BASKET_WIDTH / 2;
-    private int opponentBasketIndex;
-    private long opponentPlayerId = -1;
     private boolean resultShown;
     private boolean awaitingResult;
 
@@ -143,26 +140,16 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
                 case "FRUIT_CONFIG" -> fruits.put(integer(message, "fruitId"), new FruitDefinition(
                         integer(message, "fruitId"), integer(message, "groupId"), message.requiredField("fruitCode"),
                         message.requiredField("fruitName"), message.fields().getOrDefault("assetPath", "")));
-                case "BASKET_CONFIG" -> {
-                    // Nutrition mode has no group-basket rule. Keep only one
-                    // neutral basket for the collision area and render the
-                    // dedicated shared basket asset.
-                    if (!nutritionMode || baskets.isEmpty()) {
-                        baskets.add(nutritionMode
-                                ? new BasketDefinition(integer(message, "basketId"), integer(message, "groupId"),
-                                "Giỏ hứng", "Client/assets/baskets/standard-basket.png")
-                                : new BasketDefinition(integer(message, "basketId"), integer(message, "groupId"),
-                                message.requiredField("basketName"), message.fields().getOrDefault("assetPath", "")));
-                    }
-                    baskets.sort(Comparator.comparingInt(BasketDefinition::basketId));
-                }
+                case "BASKET_CONFIG" -> basket = new BasketDefinition(integer(message, "basketId"),
+                        message.requiredField("basketName"), message.fields().getOrDefault("assetPath", ""));
                 case "FRUIT_SPAWN" -> scheduledSpawns.add(new FruitInstance(
-                        longValue(message, "fruitInstanceId"), integer(message, "fruitId"),
-                        longValue(message, "spawnOffsetMs"), integer(message, "xPosition")));
+                        longValue(message, "fruitInstanceId"), message.fields().containsKey("fruitId") ? integer(message, "fruitId") : null,
+                        Boolean.parseBoolean(message.fields().getOrDefault("isBomb", "false")),
+                        longValue(message, "spawnOffsetMs"), integer(message, "xPosition"),
+                        integer(message, "fallDurationMs")));
                 case "MATCH_PREPARE_END" -> sendReady(message);
                 case "MATCH_START" -> start(message);
                 case "SCORE_UPDATE" -> updateScore(message);
-                case "BASKET_POSITION" -> updateBasketPosition(message);
                 case "CATCH_ACK" -> {
                 }
                 case "OPPONENT_DISCONNECTED" -> {
@@ -195,25 +182,23 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
         matchId = longValue(message, "matchId");
         durationSeconds = integer(message, "durationSeconds");
         fruits.clear();
-        baskets.clear();
+        basket = null;
         scheduledSpawns.clear();
         activeFruits.clear();
         submittedCatches.clear();
         resultShown = false;
         awaitingResult = false;
+        comboCount = 0;
         startedAtMillis = -1;
-        basketIndex = 0;
         basketX = LOGICAL_WIDTH / 2 - BASKET_WIDTH / 2;
-        opponentBasketX = basketX;
-        opponentBasketIndex = 0;
-        opponentPlayerId = -1;
-        nutritionMode = message.fields().containsKey("missionLabelId");
-        objectiveLabel.setText(nutritionMode
-                ? "Mục tiêu dinh dưỡng: " + message.fields().getOrDefault("missionLabelName", message.requiredField("missionLabelId"))
-                : "Chọn giỏ cùng nhóm với hoa quả");
-        controlsLabel.setText(nutritionMode
-                ? "<html><center><b>Điều khiển</b><br>← &nbsp;&nbsp; ↓ &nbsp;&nbsp; →<br><small>← / →: Di chuyển giỏ chung</small></center></html>"
-                : "<html><center><b>Điều khiển</b><br>↑<br>← &nbsp;&nbsp; ↓ &nbsp;&nbsp; →<br><small>← / →: Di chuyển giỏ &nbsp;&nbsp; ↑ / ↓: Đổi loại giỏ</small></center></html>");
+        orderMode = "ORDER".equals(message.fields().getOrDefault("modeCode", "CLASSIC"));
+        targetFruitIds.clear();
+        for (int index = 1; index <= 3; index++) {
+            String target = message.fields().get("targetFruitId_" + index);
+            if (target != null && !target.isBlank()) targetFruitIds.add(Integer.parseInt(target));
+        }
+        objectiveLabel.setText(orderMode ? "Đơn hàng: hứng đúng 3 loại quả mục tiêu" : "CLASSIC: hứng quả, né bom");
+        controlsLabel.setText("<html><center><b>Điều khiển</b><br>← &nbsp;&nbsp; →<br><small>← / →: Di chuyển giỏ</small></center></html>");
         controlsLabel.setFont(new Font("Arial", Font.PLAIN, 13));
         controlsLabel.setForeground(new Color(35, 80, 55));
         timerLabel.setText("Đang chuẩn bị...");
@@ -237,9 +222,13 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
     private void updateScore(ProtocolMessage message) throws Exception {
         if (longValue(message, "matchId") != matchId) return;
         long playerId = longValue(message, "playerId");
-        if (playerId != localPlayerId) opponentPlayerId = playerId;
         String score = message.requiredField("score");
-        if (playerId == localPlayerId) myScoreLabel.setText("Điểm của bạn: " + score);
+        if (playerId == localPlayerId) {
+            myScoreLabel.setText("Điểm của bạn: " + score);
+            comboCount = integer(message, "comboCount");
+            int bonus = integer(message, "comboBonus");
+            if (bonus > 0) statusLabel.setText("COMBO! Thưởng +" + bonus);
+        }
         else opponentScoreLabel.setText("Đối thủ: " + score);
     }
 
@@ -261,52 +250,24 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
             }
             return false;
         });
-        activeFruits.removeIf(fruit -> elapsed - fruit.spawnOffsetMs() > 4_500);
+        activeFruits.removeIf(fruit -> elapsed - fruit.spawnOffsetMs() > fruit.fallDurationMs() + 500L);
         gamePanel.repaint();
     }
 
     private void handleKey(int keyCode) {
-        if (startedAtMillis < 0 || resultShown || awaitingResult || baskets.isEmpty()) return;
+        if (startedAtMillis < 0 || resultShown || awaitingResult || basket == null) return;
         if (keyCode == KeyEvent.VK_LEFT) basketX = Math.max(0, basketX - 25);
         else if (keyCode == KeyEvent.VK_RIGHT) basketX = Math.min(LOGICAL_WIDTH - BASKET_WIDTH, basketX + 25);
-        // Only FRUIT_GROUP lets the player switch between group baskets.
-        // NUTRITION evaluates the fruit's nutrition labels on the server and
-        // uses one fixed basket purely as the collision area.
-        else if (!nutritionMode && keyCode == KeyEvent.VK_UP) basketIndex = (basketIndex + baskets.size() - 1) % baskets.size();
-        else if (!nutritionMode && keyCode == KeyEvent.VK_DOWN) basketIndex = (basketIndex + 1) % baskets.size();
-        sendBasketPosition();
-        gamePanel.repaint();
-    }
-
-    private void sendBasketPosition() {
-        if (matchId < 0) return;
-        try {
-            client.send(new ProtocolMessage("BASKET_MOVE", Map.of(
-                    "matchId", Long.toString(matchId),
-                    "x", Integer.toString(basketX),
-                    "basketIndex", Integer.toString(basketIndex))));
-        } catch (IOException exception) {
-            statusLabel.setText("Mất kết nối: " + exception.getMessage());
-        }
-    }
-
-    private void updateBasketPosition(ProtocolMessage message) throws Exception {
-        if (longValue(message, "matchId") != matchId) return;
-        long playerId = longValue(message, "playerId");
-        if (playerId == localPlayerId) return;
-        opponentPlayerId = playerId;
-        opponentBasketX = Math.max(0, Math.min(LOGICAL_WIDTH - BASKET_WIDTH, integer(message, "x")));
-        opponentBasketIndex = Math.max(0, integer(message, "basketIndex"));
         gamePanel.repaint();
     }
 
     private void submitCatch(FruitInstance fruit) {
-        if (awaitingResult || !submittedCatches.add(fruit.instanceId()) || baskets.isEmpty()) return;
+        if (awaitingResult || !submittedCatches.add(fruit.instanceId()) || basket == null) return;
         activeFruits.remove(fruit);
         try {
             client.send(new ProtocolMessage("CATCH_EVENT", Map.of("matchId", Long.toString(matchId),
                     "fruitInstanceId", Long.toString(fruit.instanceId()),
-                    "basketId", Integer.toString(baskets.get(basketIndex).basketId()))));
+                    "basketId", Integer.toString(basket.basketId()))));
         } catch (IOException exception) {
             submittedCatches.remove(fruit.instanceId());
             JOptionPane.showMessageDialog(this, "Không gửi được CatchEvent: " + exception.getMessage());
@@ -357,54 +318,49 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
             g.scale(scaleX, scaleY);
             if (gameBackground != null) drawAspectCover(g, gameBackground.getImage(), LOGICAL_WIDTH, LOGICAL_HEIGHT);
             drawControlsOverlay(g);
+            if (orderMode) drawOrderOverlay(g);
+            drawComboBar(g);
             long elapsed = startedAtMillis < 0 ? 0 : Math.max(0, System.currentTimeMillis() - startedAtMillis);
             List<FruitInstance> collisions = new ArrayList<>();
             for (FruitInstance fruit : activeFruits) {
-                FruitDefinition definition = fruits.get(fruit.fruitId());
-                int y = (int) Math.min(BASKET_Y - 36, (elapsed - fruit.spawnOffsetMs()) * (BASKET_Y - 36) / 4_000L);
+                FruitDefinition definition = fruit.fruitId() == null ? null : fruits.get(fruit.fruitId());
+                int y = 80 + (int) Math.min(425, (elapsed - fruit.spawnOffsetMs()) * 425L / fruit.fallDurationMs());
                 int x = Math.max(0, Math.min(LOGICAL_WIDTH - 42, fruit.xPosition()));
-                ImageIcon icon = definition == null ? null : asset(definition.assetPath());
-                if (icon != null) g.drawImage(icon.getImage(), x, y, 38, 38, null);
-                else {
-                    g.setColor(colorFor(definition == null ? fruit.fruitId() : definition.groupId()));
-                    g.fillOval(x, y, 38, 38);
+                if (fruit.isBomb()) {
+                    drawBomb(g, x, y);
+                } else {
+                    ImageIcon icon = definition == null ? null : asset(definition.assetPath());
+                    if (icon != null) g.drawImage(icon.getImage(), x, y, 38, 38, null);
+                    else {
+                        g.setColor(colorFor(definition == null ? 0 : definition.groupId()));
+                        g.fillOval(x, y, 38, 38);
+                    }
+                    g.setColor(Color.DARK_GRAY);
+                    g.drawOval(x, y, 38, 38);
+                    g.drawString(definition == null ? "?" : definition.fruitName(), x - 8, y - 3);
                 }
-                g.setColor(Color.DARK_GRAY);
-                g.drawOval(x, y, 38, 38);
-                g.drawString(definition == null ? "?" : definition.fruitName(), x - 8, y - 3);
                 if (y + 38 >= BASKET_Y && x + 38 >= basketX && x <= basketX + BASKET_WIDTH) collisions.add(fruit);
             }
-            if (!baskets.isEmpty()) {
-                BasketDefinition opponentBasket = baskets.get(Math.min(opponentBasketIndex, baskets.size() - 1));
-                ImageIcon opponentIcon = asset(opponentBasket.assetPath());
-                if (opponentIcon != null) g.drawImage(opponentIcon.getImage(), opponentBasketX, 54, BASKET_WIDTH, BASKET_HEIGHT, null);
-                else {
-                    g.setColor(new Color(80, 110, 180, 210));
-                    g.fillRoundRect(opponentBasketX, 54, BASKET_WIDTH, BASKET_HEIGHT, 12, 12);
-                }
-                g.setColor(new Color(35, 65, 130));
-                g.drawRoundRect(opponentBasketX, 54, BASKET_WIDTH, BASKET_HEIGHT, 12, 12);
-                g.drawString("Đối thủ", opponentBasketX + 10, 48);
-                BasketDefinition basket = baskets.get(basketIndex);
+            if (basket != null) {
                 ImageIcon icon = asset(basket.assetPath());
                 if (icon != null) g.drawImage(icon.getImage(), basketX, BASKET_Y, BASKET_WIDTH, BASKET_HEIGHT, null);
                 else {
-                    g.setColor(colorFor(basket.groupId()));
+                    g.setColor(new Color(185, 123, 59));
                     g.fillRoundRect(basketX, BASKET_Y, BASKET_WIDTH, BASKET_HEIGHT, 12, 12);
                 }
                 g.setColor(Color.BLACK);
                 g.drawRoundRect(basketX, BASKET_Y, BASKET_WIDTH, BASKET_HEIGHT, 12, 12);
                 g.setColor(new Color(20, 80, 50));
                 g.drawString("Bạn", basketX + 10, BASKET_Y - 8);
-                g.drawString(nutritionMode ? "Giỏ hứng" : basket.basketName(), basketX + 7, BASKET_Y + 29);
+                g.drawString(basket.basketName(), basketX + 7, BASKET_Y + 29);
             }
             g.dispose();
             for (FruitInstance fruit : collisions) submitCatch(fruit);
         }
 
         private void drawControlsOverlay(Graphics2D g) {
-            int width = nutritionMode ? 190 : 245;
-            int height = nutritionMode ? 58 : 78;
+            int width = 190;
+            int height = 58;
             g.setColor(new Color(255, 255, 255, 205));
             g.fillRoundRect(14, 14, width, height, 14, 14);
             g.setColor(new Color(22, 82, 55));
@@ -413,11 +369,45 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
             g.setFont(new Font("Arial", Font.BOLD, 14));
             g.drawString("Điều khiển", 26, 34);
             g.setFont(new Font("Arial", Font.PLAIN, 13));
-            if (nutritionMode) {
-                g.drawString("← / →  Di chuyển giỏ chung", 26, 55);
-            } else {
-                g.drawString("← / →  Di chuyển giỏ", 26, 54);
-                g.drawString("↑ / ↓  Đổi loại giỏ", 26, 72);
+            g.drawString("← / →  Di chuyển giỏ", 26, 55);
+        }
+
+        private void drawBomb(Graphics2D g, int x, int y) {
+            g.setColor(new Color(45, 45, 50));
+            g.fillOval(x, y, 38, 38);
+            g.setColor(Color.BLACK);
+            g.drawOval(x, y, 38, 38);
+            g.setColor(new Color(255, 190, 0));
+            g.setStroke(new BasicStroke(3f));
+            g.drawLine(x + 27, y + 8, x + 37, y - 3);
+            g.setColor(Color.WHITE);
+            g.setFont(new Font("Arial", Font.BOLD, 17));
+            g.drawString("!", x + 16, y + 26);
+        }
+
+        private void drawOrderOverlay(Graphics2D g) {
+            g.setColor(new Color(255, 252, 220, 220));
+            g.fillRoundRect(560, 14, 225, 60, 12, 12);
+            g.setColor(new Color(22, 82, 55));
+            g.drawRoundRect(560, 14, 225, 60, 12, 12);
+            g.setFont(new Font("Arial", Font.BOLD, 13));
+            g.drawString("Đơn hàng", 570, 34);
+            for (int index = 0; index < targetFruitIds.size(); index++) {
+                FruitDefinition fruit = fruits.get(targetFruitIds.get(index));
+                ImageIcon icon = fruit == null ? null : asset(fruit.assetPath());
+                int x = 640 + index * 45;
+                if (icon != null) g.drawImage(icon.getImage(), x, 24, 34, 34, null);
+                else g.drawString("?", x + 12, 47);
+            }
+        }
+
+        private void drawComboBar(Graphics2D g) {
+            g.setFont(new Font("Arial", Font.BOLD, 12));
+            g.setColor(new Color(22, 82, 55));
+            g.drawString("Combo", 670, 560);
+            for (int index = 0; index < 5; index++) {
+                g.setColor(index < comboCount ? new Color(255, 195, 0) : new Color(170, 170, 170, 140));
+                g.fillOval(720 + index * 14, 550, 10, 10);
             }
         }
 
@@ -450,9 +440,10 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
     private record FruitDefinition(int fruitId, int groupId, String fruitCode, String fruitName, String assetPath) {
     }
 
-    private record BasketDefinition(int basketId, int groupId, String basketName, String assetPath) {
+    private record BasketDefinition(int basketId, String basketName, String assetPath) {
     }
 
-    private record FruitInstance(long instanceId, int fruitId, long spawnOffsetMs, int xPosition) {
+    private record FruitInstance(long instanceId, Integer fruitId, boolean isBomb, long spawnOffsetMs,
+                                 int xPosition, int fallDurationMs) {
     }
 }

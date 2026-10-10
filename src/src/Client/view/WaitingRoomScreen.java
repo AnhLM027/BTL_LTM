@@ -29,7 +29,7 @@ public final class WaitingRoomScreen extends JFrame implements TcpGameClient.Mes
             return false;
         }
     };
-    private final JComboBox<String> mode = new JComboBox<>(new String[]{"FRUIT_GROUP", "NUTRITION"});
+    private final JComboBox<String> mode = new JComboBox<>(new String[]{"CLASSIC", "ORDER"});
     private final JLabel roomLabel = new JLabel("Phòng chờ", SwingConstants.CENTER);
     private final JLabel hostLabel = new JLabel("HOST: —");
     private final JLabel guestLabel = new JLabel("GUEST: Đang chờ người chơi");
@@ -244,7 +244,7 @@ public final class WaitingRoomScreen extends JFrame implements TcpGameClient.Mes
     }
 
     private String modeCode(String modeId) {
-        return "2".equals(modeId) ? "NUTRITION" : "FRUIT_GROUP";
+        return "2".equals(modeId) ? "ORDER" : "CLASSIC";
     }
 
     private void refreshInviteActions() {
@@ -290,7 +290,7 @@ public final class WaitingRoomScreen extends JFrame implements TcpGameClient.Mes
     }
 
     private void updateModeImage(String modeCode) {
-        String asset = "NUTRITION".equals(modeCode) ? "modes/mode-nutrition.png" : "modes/mode-fruit-group.png";
+        String asset = "ORDER".equals(modeCode) ? "modes/mode-nutrition.png" : "modes/mode-fruit-group.png";
         ImageIcon icon = AssetLoader.icon(asset);
         if (icon != null) {
             modeImage.setIcon(AssetLoader.scaleToFit(icon, 26, 26));
