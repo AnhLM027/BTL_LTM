@@ -23,7 +23,7 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
             return false;
         }
     };
-    private final JComboBox<String> mode = new JComboBox<>(new String[]{"FRUIT_GROUP", "NUTRITION"});
+    private final JComboBox<String> mode = new JComboBox<>(new String[]{"CLASSIC", "ORDER"});
     private final JButton create      = new JButton("Tạo phòng");
     private final JButton leaveRoom   = new JButton("Thoát phòng");
     private final JButton invite      = new JButton("Mời");
@@ -370,11 +370,11 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
         content.setOpaque(false);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.setMaximumSize(new Dimension(500, Integer.MAX_VALUE));
-        content.add(dialogSection("CÁCH CHƠI", "Thi đấu 1 vs 1 trong 30 giây. Di chuyển giỏ bằng phím mũi tên và hứng các quả phù hợp."));
+        content.add(dialogSection("CÁCH CHƠI", "Thi đấu 1 vs 1 trong 30 giây. Chỉ dùng phím mũi tên trái/phải để di chuyển giỏ."));
         content.add(Box.createVerticalStrut(10));
-        content.add(dialogSection("CHẾ ĐỘ 1 · FRUIT GROUP", modeDescriptions.getOrDefault("FRUIT_GROUP", "Chọn đúng giỏ theo nhóm của quả.")));
+        content.add(dialogSection("CHẾ ĐỘ 1 · CLASSIC", modeDescriptions.getOrDefault("CLASSIC", "Hứng hoa quả để nhận điểm và né bom để không bị trừ điểm.")));
         content.add(Box.createVerticalStrut(10));
-        content.add(dialogSection("CHẾ ĐỘ 2 · NUTRITION", modeDescriptions.getOrDefault("NUTRITION", "Hứng những quả phù hợp với mục tiêu dinh dưỡng của trận.")));
+        content.add(dialogSection("CHẾ ĐỘ 2 · ORDER", modeDescriptions.getOrDefault("ORDER", "Hứng ba loại quả nằm trong đơn hàng của trận.")));
         JScrollPane scroll = new JScrollPane(content);
         scroll.setBorder(BorderFactory.createEmptyBorder());
         scroll.setOpaque(false);
@@ -732,7 +732,7 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
 
     /** Updates the mode icon label whenever the combobox selection changes. */
     private void updateModeImage(String modeCode) {
-        String asset = "NUTRITION".equals(modeCode) ? "modes/mode-nutrition.png" : "modes/mode-fruit-group.png";
+        String asset = "ORDER".equals(modeCode) ? "modes/mode-nutrition.png" : "modes/mode-fruit-group.png";
         ImageIcon icon = AssetLoader.icon(asset);
         if (icon != null) {
             modeImgLabel.setIcon(AssetLoader.scaleToFit(icon, 26, 26));

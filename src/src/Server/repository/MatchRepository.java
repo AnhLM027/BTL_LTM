@@ -12,13 +12,12 @@ import java.util.List;
 import java.util.Optional;
 
 public final class MatchRepository {
-    public GameMatch create(Connection c, long roomId, int modeId, Integer missionLabelId, Long seed, long host, long guest, List<FruitSpawn> spawns) throws SQLException {
-        try (PreparedStatement s = c.prepareStatement("INSERT INTO game_match (room_id,mode_id,mission_label_id,seed,duration_seconds,match_state) VALUES (?,?,?,?,30,'PREPARING')", Statement.RETURN_GENERATED_KEYS)) {
+    public GameMatch create(Connection c, long roomId, int modeId, Long seed, long host, long guest,
+                            List<FruitSpawn> spawns, List<Integer> targetFruitIds) throws SQLException {
+        try (PreparedStatement s = c.prepareStatement("INSERT INTO game_match (room_id,mode_id,seed,duration_seconds,match_state) VALUES (?,?,?,30,'PREPARING')", Statement.RETURN_GENERATED_KEYS)) {
             s.setLong(1, roomId);
             s.setInt(2, modeId);
-            if (missionLabelId == null) s.setNull(3, Types.INTEGER);
-            else s.setInt(3, missionLabelId);
-            s.setLong(4, seed);
+            s.setLong(3, seed);
             s.executeUpdate();
             try (ResultSet k = s.getGeneratedKeys()) {
                 if (!k.next()) throw new SQLException("Missing match id");
@@ -30,17 +29,20 @@ public final class MatchRepository {
                     p.setLong(4, guest);
                     p.executeUpdate();
                 }
-                try (PreparedStatement p = c.prepareStatement("INSERT INTO fruit_spawn (match_id,fruit_id,spawn_order,spawn_offset_ms,x_position) VALUES (?,?,?,?,?)")) {
+                try (PreparedStatement p = c.prepareStatement("INSERT INTO fruit_spawn (match_id,fruit_id,is_bomb,spawn_order,spawn_offset_ms,x_position,fall_duration_ms) VALUES (?,?,?,?,?,?,?)")) {
                     for (FruitSpawn f : spawns) {
                         p.setLong(1, id);
-                        p.setInt(2, f.fruitId());
-                        p.setInt(3, f.spawnOrder());
-                        p.setLong(4, f.spawnOffsetMs());
-                        p.setInt(5, f.xPosition());
+                        if (f.fruitId() == null) p.setNull(2, Types.INTEGER); else p.setInt(2, f.fruitId());
+                        p.setBoolean(3, f.isBomb());
+                        p.setInt(4, f.spawnOrder());
+                        p.setLong(5, f.spawnOffsetMs());
+                        p.setInt(6, f.xPosition());
+                        p.setInt(7, f.fallDurationMs());
                         p.addBatch();
                     }
                     p.executeBatch();
                 }
+                saveTargetFruits(c, id, targetFruitIds);
                 try (PreparedStatement p = c.prepareStatement("UPDATE room SET room_state='PREPARING',host_ready=FALSE,guest_ready=FALSE WHERE room_id=?")) {
                     p.setLong(1, roomId);
                     p.executeUpdate();
@@ -89,7 +91,10 @@ public final class MatchRepository {
             try (ResultSet r = s.executeQuery()) {
                 List<FruitSpawn> list = new java.util.ArrayList<>();
                 while (r.next())
-                    list.add(new FruitSpawn(r.getLong("fruit_instance_id"), matchId, r.getInt("fruit_id"), r.getInt("spawn_order"), r.getLong("spawn_offset_ms"), r.getInt("x_position")));
+                    list.add(new FruitSpawn(r.getLong("fruit_instance_id"), matchId,
+                            r.getObject("fruit_id", Integer.class), r.getBoolean("is_bomb"),
+                            r.getInt("spawn_order"), r.getLong("spawn_offset_ms"), r.getInt("x_position"),
+                            r.getInt("fall_duration_ms")));
                 return list;
             }
         }
@@ -102,6 +107,31 @@ public final class MatchRepository {
                 List<Long> ids = new java.util.ArrayList<>();
                 while (r.next()) ids.add(r.getLong(1));
                 return ids;
+            }
+        }
+    }
+
+    public void saveTargetFruits(Connection c, long matchId, List<Integer> targetFruitIds) throws SQLException {
+        if (targetFruitIds == null || targetFruitIds.isEmpty()) return;
+        if (targetFruitIds.size() != 3) throw new SQLException("ORDER must have exactly three target fruits");
+        try (PreparedStatement statement = c.prepareStatement("INSERT INTO match_target_fruit(match_id,target_order,fruit_id) VALUES (?,?,?)")) {
+            for (int index = 0; index < targetFruitIds.size(); index++) {
+                statement.setLong(1, matchId);
+                statement.setInt(2, index + 1);
+                statement.setInt(3, targetFruitIds.get(index));
+                statement.addBatch();
+            }
+            statement.executeBatch();
+        }
+    }
+
+    public List<Integer> findTargetFruits(Connection c, long matchId) throws SQLException {
+        try (PreparedStatement statement = c.prepareStatement("SELECT fruit_id FROM match_target_fruit WHERE match_id=? ORDER BY target_order")) {
+            statement.setLong(1, matchId);
+            try (ResultSet result = statement.executeQuery()) {
+                List<Integer> fruitIds = new java.util.ArrayList<>();
+                while (result.next()) fruitIds.add(result.getInt(1));
+                return fruitIds;
             }
         }
     }
@@ -153,7 +183,7 @@ public final class MatchRepository {
     }
 
     private GameMatch map(ResultSet r) throws SQLException {
-        return new GameMatch(r.getLong("match_id"), r.getLong("room_id"), r.getInt("mode_id"), r.getObject("mission_label_id", Integer.class), r.getObject("seed", Long.class), r.getInt("duration_seconds"), MatchState.valueOf(r.getString("match_state")), r.getObject("winner_player_id", Long.class), timestamp(r, "started_at"), timestamp(r, "ended_at"), r.getTimestamp("created_at").toLocalDateTime());
+        return new GameMatch(r.getLong("match_id"), r.getLong("room_id"), r.getInt("mode_id"), r.getObject("seed", Long.class), r.getInt("duration_seconds"), MatchState.valueOf(r.getString("match_state")), r.getObject("winner_player_id", Long.class), timestamp(r, "started_at"), timestamp(r, "ended_at"), r.getTimestamp("created_at").toLocalDateTime());
     }
 
     private MatchPlayer mapPlayer(ResultSet r) throws SQLException {

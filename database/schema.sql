@@ -143,19 +143,13 @@ CREATE TABLE fruit_nutrition (
 
 -- =========================================================
 -- 9. BASKET
+-- Gameplay dùng một giỏ cố định; giỏ không còn liên kết với fruit_group.
 -- =========================================================
 CREATE TABLE basket (
     basket_id INT AUTO_INCREMENT PRIMARY KEY,
-    group_id INT NOT NULL,
     basket_name VARCHAR(100) NOT NULL,
     asset_path VARCHAR(500),
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-
-    CONSTRAINT fk_basket_group
-        FOREIGN KEY (group_id)
-        REFERENCES fruit_group(group_id)
-        ON DELETE RESTRICT
-        ON UPDATE CASCADE
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- =========================================================
@@ -276,9 +270,6 @@ CREATE TABLE game_match (
     room_id BIGINT NOT NULL,
     mode_id INT NOT NULL,
 
-    -- Chỉ dùng trong NUTRITION mode
-    mission_label_id INT NULL,
-
     seed BIGINT NULL,
 
     duration_seconds INT NOT NULL DEFAULT 30,
@@ -301,12 +292,6 @@ CREATE TABLE game_match (
     CONSTRAINT fk_match_mode
         FOREIGN KEY (mode_id)
         REFERENCES game_mode(mode_id)
-        ON DELETE RESTRICT
-        ON UPDATE CASCADE,
-
-    CONSTRAINT fk_match_mission
-        FOREIGN KEY (mission_label_id)
-        REFERENCES nutrition_label(label_id)
         ON DELETE RESTRICT
         ON UPDATE CASCADE,
 
@@ -376,13 +361,16 @@ CREATE TABLE match_player (
 
 -- =========================================================
 -- 14. FRUIT SPAWN
--- Lịch sinh hoa quả dùng chung cho hai client
+-- Lịch sinh vật thể dùng chung cho hai client. Bom có fruit_id = NULL.
 -- =========================================================
 CREATE TABLE fruit_spawn (
     fruit_instance_id BIGINT AUTO_INCREMENT PRIMARY KEY,
 
     match_id BIGINT NOT NULL,
-    fruit_id INT NOT NULL,
+    fruit_id INT NULL,
+    -- Quy tắc is_bomb ↔ fruit_id được MatchService kiểm tra ở tầng server.
+    -- MySQL không cho CHECK này cùng với FK fruit_id có referential action.
+    is_bomb BOOLEAN NOT NULL DEFAULT FALSE,
 
     spawn_order INT NOT NULL,
 
@@ -390,6 +378,7 @@ CREATE TABLE fruit_spawn (
     spawn_offset_ms BIGINT NOT NULL,
 
     x_position INT NOT NULL,
+    fall_duration_ms INT NOT NULL DEFAULT 4000,
 
     CONSTRAINT fk_spawn_match
         FOREIGN KEY (match_id)
@@ -407,11 +396,50 @@ CREATE TABLE fruit_spawn (
         UNIQUE (match_id, spawn_order),
 
     CONSTRAINT chk_spawn_offset
-        CHECK (spawn_offset_ms >= 0)
+        CHECK (spawn_offset_ms BETWEEN 0 AND 26600),
+
+    CONSTRAINT chk_spawn_x_position
+        CHECK (x_position BETWEEN 0 AND 758),
+
+    CONSTRAINT chk_fall_duration
+        CHECK (fall_duration_ms IN (2500, 4000)),
+
+    CONSTRAINT chk_spawn_lands_before_match_end
+        CHECK (spawn_offset_ms + fall_duration_ms <= 30000)
 );
 
 -- =========================================================
--- 15. CATCH EVENT
+-- 15. MATCH TARGET FRUIT
+-- Ba quả mục tiêu của một ORDER, theo đúng thứ tự hiển thị cho client.
+-- =========================================================
+CREATE TABLE match_target_fruit (
+    match_id BIGINT NOT NULL,
+    target_order TINYINT NOT NULL,
+    fruit_id INT NOT NULL,
+
+    PRIMARY KEY (match_id, target_order),
+
+    CONSTRAINT uk_match_target_fruit
+        UNIQUE (match_id, fruit_id),
+
+    CONSTRAINT fk_target_match
+        FOREIGN KEY (match_id)
+        REFERENCES game_match(match_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_target_fruit
+        FOREIGN KEY (fruit_id)
+        REFERENCES fruit(fruit_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT chk_target_order
+        CHECK (target_order IN (1, 2, 3))
+);
+
+-- =========================================================
+-- 16. CATCH EVENT
 -- =========================================================
 CREATE TABLE catch_event (
     catch_event_id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -455,7 +483,7 @@ CREATE TABLE catch_event (
 
     CONSTRAINT chk_score_delta
         CHECK (
-            score_delta IN (10, -5)
+            score_delta IN (10, -5, -10)
         )
 );
 
@@ -526,14 +554,14 @@ INSERT INTO game_mode (
 )
 VALUES
 (
-    'FRUIT_GROUP',
-    'Phân loại theo nhóm hoa quả',
-    'Trận đấu 1v1 kéo dài 30 giây. Người chơi di chuyển giỏ để hứng các quả đang rơi và phải sử dụng đúng loại giỏ tương ứng với nhóm của từng quả. Hứng đúng được +10 điểm, hứng sai bị -5 điểm, bỏ qua quả không phù hợp không bị trừ điểm.'
+    'CLASSIC',
+    'Hứng né bom',
+    'Trận đấu 1v1 kéo dài 30 giây. Dùng phím mũi tên trái/phải để di chuyển một giỏ cố định. Hứng hoa quả được +10 điểm, hứng bom bị -10 điểm. Bỏ qua vật thể không bị trừ điểm.'
 ),
 (
-    'NUTRITION',
-    'Phân loại theo đặc tính dinh dưỡng',
-    'Trận đấu 1v1 kéo dài 30 giây với một yêu cầu dinh dưỡng được chọn cho mỗi trận, ví dụ Vitamin C, Kali hoặc chất xơ. Người chơi sử dụng một giỏ chung và chỉ hứng những quả có đặc tính dinh dưỡng phù hợp với yêu cầu. Hứng đúng được +10 điểm, hứng sai bị -5 điểm, bỏ qua quả không phù hợp không bị trừ điểm.'
+    'ORDER',
+    'Hứng theo đơn hàng',
+    'Trận đấu 1v1 kéo dài 30 giây. Mỗi trận có ba quả mục tiêu. Dùng phím mũi tên trái/phải để hứng quả trong đơn hàng: đúng +10 điểm, ngoài đơn -5 điểm.'
 );
 
 INSERT INTO fruit_group (group_code, group_name, description)
@@ -598,15 +626,9 @@ VALUES
     ((SELECT fruit_id FROM fruit WHERE fruit_code = 'BANANA'), (SELECT label_id FROM nutrition_label WHERE label_code = 'POTASSIUM')),
     ((SELECT fruit_id FROM fruit WHERE fruit_code = 'BANANA'), (SELECT label_id FROM nutrition_label WHERE label_code = 'FIBER'));
 
-INSERT INTO basket (group_id, basket_name, asset_path)
+INSERT INTO basket (basket_name, asset_path)
 VALUES
-    ((SELECT group_id FROM fruit_group WHERE group_code = 'CITRUS'), 'Giỏ quả có múi', 'Client/assets/baskets/citrus-basket.png'),
-    ((SELECT group_id FROM fruit_group WHERE group_code = 'BERRY'), 'Giỏ quả mọng', 'Client/assets/baskets/berry-basket.png'),
-    ((SELECT group_id FROM fruit_group WHERE group_code = 'STONE_FRUIT'), 'Giỏ quả hạch', 'Client/assets/baskets/stone-fruit-basket.png'),
-    ((SELECT group_id FROM fruit_group WHERE group_code = 'TROPICAL'), 'Giỏ quả nhiệt đới', 'Client/assets/baskets/tropical-basket.png'),
-    ((SELECT group_id FROM fruit_group WHERE group_code = 'POME'), 'Giỏ quả có lõi', 'Client/assets/baskets/pome-basket.png'),
-    ((SELECT group_id FROM fruit_group WHERE group_code = 'MELON'), 'Giỏ dưa', 'Client/assets/baskets/melon-basket.png'),
-    ((SELECT group_id FROM fruit_group WHERE group_code = 'BANANA'), 'Giỏ chuối', 'Client/assets/baskets/banana-basket.png');
+    ('Giỏ hứng', 'Client/assets/baskets/standard-basket.png');
 
 INSERT INTO fruit_asset (fruit_id, asset_type, asset_path, is_default)
 SELECT fruit_id, 'SPRITE', default_asset_path, TRUE

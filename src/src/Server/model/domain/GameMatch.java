@@ -8,7 +8,6 @@ public record GameMatch(
         long matchId,
         long roomId,
         int modeId,
-        Integer missionLabelId,
         Long seed,
         int durationSeconds,
         MatchState state,
