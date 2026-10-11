@@ -69,6 +69,22 @@ public final class MatchRepository {
         }
     }
 
+    public List<GameMatch> findPending(Connection c) throws SQLException {
+        try (PreparedStatement s = c.prepareStatement("SELECT * FROM game_match WHERE match_state IN ('PREPARING','READY')"); ResultSet r = s.executeQuery()) {
+            List<GameMatch> list = new java.util.ArrayList<>();
+            while (r.next()) list.add(map(r));
+            return list;
+        }
+    }
+
+    public void cancelPending(Connection c, long matchId) throws SQLException {
+        try (PreparedStatement statement = c.prepareStatement(
+                "UPDATE game_match SET match_state='CANCELLED' WHERE match_id=? AND match_state IN ('PREPARING','READY')")) {
+            statement.setLong(1, matchId);
+            statement.executeUpdate();
+        }
+    }
+
     public Optional<GameMatch> findActiveForPlayer(Connection c, long playerId) throws SQLException {
         try (PreparedStatement s = c.prepareStatement("SELECT m.* FROM game_match m JOIN match_player mp ON mp.match_id=m.match_id WHERE mp.player_id=? AND m.match_state='PLAYING' ORDER BY m.started_at DESC LIMIT 1")) {
             s.setLong(1, playerId);

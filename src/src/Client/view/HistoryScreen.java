@@ -10,7 +10,7 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.util.List;
 
-public final class HistoryScreen extends JFrame {
+public final class HistoryScreen extends JPanel implements ClientScreen {
     private final DefaultTableModel rows = new DefaultTableModel(
             new String[]{"Mã trận", "Thời gian", "Đối thủ", "Mode", "Điểm", "Kết quả"}, 0) {
         public boolean isCellEditable(int r, int c) {
@@ -19,9 +19,6 @@ public final class HistoryScreen extends JFrame {
     };
 
     public HistoryScreen(String ignoredPlayerId) {
-        setTitle("Lịch sử trận đấu");
-        setSize(780, 440);
-        setLocationRelativeTo(null);
         setLayout(new BorderLayout(0, 0));
 
         // ── Header ──────────────────────────────────────────────────────────
@@ -58,13 +55,11 @@ public final class HistoryScreen extends JFrame {
         back.setFocusPainted(false);
         back.setBorderPainted(false);
         back.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        back.addActionListener(e -> dispose());
+        back.addActionListener(e -> MainClientFrame.instance().showLobby());
 
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 8));
         bottomPanel.add(back);
         add(bottomPanel, BorderLayout.SOUTH);
-
-        setVisible(true);
 
         try {
             TcpQuery.collect(GameClientSession.instance().client(),

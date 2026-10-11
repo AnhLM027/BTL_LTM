@@ -8,5 +8,9 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="mysql-connector-j-8.4.0" level="project" />
+    <orderEntry type="library" name="Maven: org.openjfx:javafx-controls:win:21.0.8" level="project" />
+    <orderEntry type="library" name="Maven: org.openjfx:javafx-graphics:win:21.0.8" level="project" />
+    <orderEntry type="library" name="Maven: org.openjfx:javafx-base:win:21.0.8" level="project" />
+    <orderEntry type="library" name="Maven: org.openjfx:javafx-fxml:win:21.0.8" level="project" />
   </component>
 </module>

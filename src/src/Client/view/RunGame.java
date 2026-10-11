@@ -2,6 +2,7 @@ package Client.view;
 
 import Client.network.TcpGameClient;
 import Client.ui.AssetLoader;
+import Client.ui.AssetPaths;
 import Server.network.ProtocolMessage;
 
 import javax.swing.BorderFactory;
@@ -30,7 +31,7 @@ import java.util.Set;
 /**
  * TCP-driven fruit-catching screen. The server remains the sole score authority.
  */
-public final class RunGame extends JFrame implements TcpGameClient.MessageListener {
+public final class RunGame extends JPanel implements TcpGameClient.MessageListener, ClientScreen {
     /** Coordinates exchanged with the server are always in this logical space. */
     private static final int LOGICAL_WIDTH = 800;
     private static final int LOGICAL_HEIGHT = 600;
@@ -39,6 +40,10 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
     private static final int BASKET_Y = 505;
     private static final int BASKET_WIDTH = 120;
     private static final int BASKET_HEIGHT = 87;
+    private static final long CLASSIC_PHASE_1_END_MS = 8_800;
+    private static final long CLASSIC_PHASE_2_START_MS = 11_000;
+    private static final long CLASSIC_PHASE_2_END_MS = 20_000;
+    private static final long CLASSIC_PHASE_3_START_MS = 22_200;
 
     private final TcpGameClient client;
     private final long localPlayerId;
@@ -71,16 +76,13 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
     private int basketX = LOGICAL_WIDTH / 2 - BASKET_WIDTH / 2;
     private boolean resultShown;
     private boolean awaitingResult;
+    private boolean resultRequested;
+    private int displayedClassicPhase;
 
     public RunGame(TcpGameClient client, long localPlayerId) {
         this.client = client;
         this.localPlayerId = localPlayerId;
         client.addListener(this);
-        setTitle("Fruit Battle Online");
-        setSize(WINDOW_WIDTH, WINDOW_HEIGHT);
-        setMinimumSize(new Dimension(640, 500));
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setLocationRelativeTo(null);
         setLayout(new BorderLayout());
         add(createTopPanel(), BorderLayout.NORTH);
         add(gamePanel, BorderLayout.CENTER);
@@ -142,15 +144,19 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
                         message.requiredField("fruitName"), message.fields().getOrDefault("assetPath", "")));
                 case "BASKET_CONFIG" -> basket = new BasketDefinition(integer(message, "basketId"),
                         message.requiredField("basketName"), message.fields().getOrDefault("assetPath", ""));
-                case "FRUIT_SPAWN" -> scheduledSpawns.add(new FruitInstance(
-                        longValue(message, "fruitInstanceId"), message.fields().containsKey("fruitId") ? integer(message, "fruitId") : null,
-                        Boolean.parseBoolean(message.fields().getOrDefault("isBomb", "false")),
-                        longValue(message, "spawnOffsetMs"), integer(message, "xPosition"),
-                        integer(message, "fallDurationMs")));
+                case "FRUIT_SPAWN" -> {
+                    if (longValue(message, "matchId") == matchId) scheduledSpawns.add(new FruitInstance(
+                            longValue(message, "fruitInstanceId"), message.fields().containsKey("fruitId") ? integer(message, "fruitId") : null,
+                            Boolean.parseBoolean(message.fields().getOrDefault("isBomb", "false")),
+                            longValue(message, "spawnOffsetMs"), integer(message, "xPosition"),
+                            integer(message, "fallDurationMs")));
+                }
                 case "MATCH_PREPARE_END" -> sendReady(message);
                 case "MATCH_START" -> start(message);
                 case "SCORE_UPDATE" -> updateScore(message);
                 case "CATCH_ACK" -> {
+                    if (!Boolean.parseBoolean(message.fields().getOrDefault("accepted", "true")))
+                        statusLabel.setText("Hứng bị từ chối: " + message.fields().getOrDefault("reason", "đối tượng không còn hợp lệ"));
                 }
                 case "OPPONENT_DISCONNECTED" -> {
                         if (iconOpponentDisconnected != null) {
@@ -169,6 +175,7 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
                 case "ERROR" ->
                         statusLabel.setText("Catch bị từ chối: " + message.fields().getOrDefault("message", "không hợp lệ"));
                 case "MATCH_RESULT" -> showResult(message);
+                case "MATCH_CANCELLED" -> MainClientFrame.instance().showLobby();
                 default -> {
                 }
             }
@@ -188,7 +195,9 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
         submittedCatches.clear();
         resultShown = false;
         awaitingResult = false;
+        resultRequested = false;
         comboCount = 0;
+        displayedClassicPhase = 0;
         startedAtMillis = -1;
         basketX = LOGICAL_WIDTH / 2 - BASKET_WIDTH / 2;
         orderMode = "ORDER".equals(message.fields().getOrDefault("modeCode", "CLASSIC"));
@@ -239,6 +248,15 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
         if (remaining == 0) {
             awaitingResult = true;
             statusLabel.setText("Hết giờ — đang chốt kết quả từ server...");
+            if (!resultRequested) {
+                resultRequested = true;
+                try {
+                    client.send(new ProtocolMessage("MATCH_RESULT_REQUEST",
+                            Map.of("matchId", Long.toString(matchId))));
+                } catch (IOException ignored) {
+                    statusLabel.setText("Mất kết nối · chưa nhận được kết quả trận đấu");
+                }
+            }
             gamePanel.repaint();
             return;
         }
@@ -250,8 +268,39 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
             }
             return false;
         });
-        activeFruits.removeIf(fruit -> elapsed - fruit.spawnOffsetMs() > fruit.fallDurationMs() + 500L);
+        // A phase is clear only when its last object is no longer rendered.
+        // Do not retain an already-landed object during the inter-phase break.
+        activeFruits.removeIf(fruit -> elapsed - fruit.spawnOffsetMs() > fruit.fallDurationMs());
+        updateClassicPhaseStatus(elapsed);
         gamePanel.repaint();
+    }
+
+    private void updateClassicPhaseStatus(long elapsed) {
+        if (orderMode || isClassicBreak(elapsed)) return;
+        int phase = elapsed < CLASSIC_PHASE_2_START_MS ? 1
+                : elapsed < CLASSIC_PHASE_3_START_MS ? 2 : 3;
+        if (phase != displayedClassicPhase) {
+            displayedClassicPhase = phase;
+            statusLabel.setText("Giai đoạn " + phase
+                    + (phase == 1 ? " — Khởi động" : " — Tốc độ tăng"));
+        }
+    }
+
+    private boolean isClassicBreak(long elapsed) {
+        return isPhaseBreakReady(elapsed, CLASSIC_PHASE_1_END_MS, CLASSIC_PHASE_2_START_MS)
+                || isPhaseBreakReady(elapsed, CLASSIC_PHASE_2_END_MS, CLASSIC_PHASE_3_START_MS);
+    }
+
+    /**
+     * A speed-up notice is allowed only after every object from the preceding
+     * phase has left the screen. The server schedules enough room for this
+     * check, but the client still performs it before rendering the notice.
+     */
+    private boolean isPhaseBreakReady(long elapsed, long previousPhaseEndsAt, long nextPhaseStartsAt) {
+        if (elapsed < previousPhaseEndsAt || elapsed >= nextPhaseStartsAt) return false;
+        return activeFruits.stream().noneMatch(fruit ->
+                fruit.spawnOffsetMs() < nextPhaseStartsAt
+                        && elapsed - fruit.spawnOffsetMs() <= fruit.fallDurationMs());
     }
 
     private void handleKey(int keyCode) {
@@ -281,18 +330,13 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
         String result       = message.requiredField("result");
         String myScore      = message.requiredField("score");
         String opponentScore = message.requiredField("opponentScore");
-        setVisible(false); // hide game screen while result is showing
-        new EndGameScreen(result, myScore, opponentScore, () -> {
-            dispose();
-            new LobbyScreen(Long.toString(localPlayerId), "");
-        });
+        MainClientFrame.instance().showEndGame(result, myScore, opponentScore);
     }
 
     @Override
-    public void dispose() {
+    public void onHide() {
         renderTimer.stop();
         client.removeListener(this);
-        super.dispose();
     }
 
     private long longValue(ProtocolMessage message, String name) throws Exception {
@@ -354,6 +398,7 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
                 g.drawString("Bạn", basketX + 10, BASKET_Y - 8);
                 g.drawString(basket.basketName(), basketX + 7, BASKET_Y + 29);
             }
+            if (!orderMode) drawClassicPhaseOverlay(g, elapsed);
             g.dispose();
             for (FruitInstance fruit : collisions) submitCatch(fruit);
         }
@@ -411,6 +456,45 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
             }
         }
 
+        private void drawClassicPhaseOverlay(Graphics2D g, long elapsed) {
+            String title = null;
+            String subtitle = null;
+            long countdownMs = 0;
+            if (isPhaseBreakReady(elapsed, CLASSIC_PHASE_1_END_MS, CLASSIC_PHASE_2_START_MS)) {
+                title = "GIAI ĐOẠN 2";
+                subtitle = "TỐC ĐỘ TĂNG!";
+                countdownMs = CLASSIC_PHASE_2_START_MS - elapsed;
+            } else if (isPhaseBreakReady(elapsed, CLASSIC_PHASE_2_END_MS, CLASSIC_PHASE_3_START_MS)) {
+                title = "GIAI ĐOẠN 3";
+                subtitle = "TỐC ĐỘ TỐI ĐA!";
+                countdownMs = CLASSIC_PHASE_3_START_MS - elapsed;
+            } else if (elapsed < 1_100) {
+                title = "GIAI ĐOẠN 1";
+                subtitle = "BẮT ĐẦU!";
+            }
+            if (title == null) return;
+            g.setColor(new Color(0, 45, 28, 125));
+            g.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+            g.setColor(new Color(255, 253, 229, 235));
+            g.fillRoundRect(190, 205, 420, 150, 22, 22);
+            g.setColor(new Color(22, 82, 55));
+            g.setStroke(new BasicStroke(3f));
+            g.drawRoundRect(190, 205, 420, 150, 22, 22);
+            g.setFont(new Font("Arial", Font.BOLD, 28));
+            drawCentered(g, title, 265);
+            g.setFont(new Font("Arial", Font.BOLD, 20));
+            drawCentered(g, subtitle, 300);
+            if (countdownMs > 0) {
+                g.setFont(new Font("Arial", Font.PLAIN, 16));
+                drawCentered(g, "Bắt đầu sau " + ((countdownMs + 999) / 1_000) + "...", 330);
+            }
+        }
+
+        private void drawCentered(Graphics2D g, String text, int baselineY) {
+            FontMetrics metrics = g.getFontMetrics();
+            g.drawString(text, (LOGICAL_WIDTH - metrics.stringWidth(text)) / 2, baselineY);
+        }
+
         private void drawAspectCover(Graphics2D g, Image image, int width, int height) {
             double scale = Math.max(width / (double) gameBackground.getIconWidth(),
                     height / (double) gameBackground.getIconHeight());
@@ -426,10 +510,7 @@ public final class RunGame extends JFrame implements TcpGameClient.MessageListen
 
     private ImageIcon asset(String path) {
         if (path == null || path.isBlank()) return null;
-        String relative = path.replace('\\', '/');
-        int marker = relative.indexOf("Client/assets/");
-        if (marker >= 0) relative = relative.substring(marker + "Client/assets/".length());
-        return AssetLoader.icon(relative);
+        return AssetLoader.icon(AssetPaths.normalize(path));
     }
 
     @Override

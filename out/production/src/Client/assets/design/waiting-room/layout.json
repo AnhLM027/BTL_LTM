@@ -1,0 +1,344 @@
+{
+  "design_canvas": {
+    "width": 1080,
+    "height": 760
+  },
+  "jframe_default_outer_size": [
+    1080,
+    760
+  ],
+  "jframe_minimum_outer_size": [
+    810,
+    540
+  ],
+  "runtime_viewport": "Actual game JPanel getWidth()/getHeight(); frame insets excluded",
+  "scale_formula": "s=min(panelWidth/1080.0,panelHeight/760.0)",
+  "center_formula": "offsetX=(panelWidth-1080*s)/2; offsetY=(panelHeight-760*s)/2",
+  "background_mode": "cover: preserve aspect ratio and crop excess; fill entire panel",
+  "profiles": {
+    "default_1080x760": {
+      "viewport": [
+        1080,
+        760
+      ],
+      "images": [
+        {
+          "file": "icons/logo.png",
+          "x": 42,
+          "y": 24,
+          "width": 168,
+          "height": 100
+        },
+        {
+          "file": "panels/header.png",
+          "x": 260,
+          "y": 24,
+          "width": 560,
+          "height": 120
+        },
+        {
+          "file": "panels/room_info.png",
+          "x": 390,
+          "y": 160,
+          "width": 300,
+          "height": 34
+        },
+        {
+          "file": "panels/player_blue.png",
+          "x": 138,
+          "y": 204,
+          "width": 320,
+          "height": 340
+        },
+        {
+          "file": "panels/player_orange.png",
+          "x": 622,
+          "y": 204,
+          "width": 320,
+          "height": 340
+        },
+        {
+          "file": "avatars/player.png",
+          "x": 215,
+          "y": 224,
+          "width": 166,
+          "height": 166
+        },
+        {
+          "file": "avatars/waiting.png",
+          "x": 699,
+          "y": 224,
+          "width": 166,
+          "height": 166
+        },
+        {
+          "file": "icons/vs.png",
+          "x": 472,
+          "y": 322,
+          "width": 136,
+          "height": 94
+        },
+        {
+          "file": "buttons/blue.png",
+          "x": 188,
+          "y": 472,
+          "width": 220,
+          "height": 52
+        },
+        {
+          "file": "buttons/green.png",
+          "x": 672,
+          "y": 472,
+          "width": 220,
+          "height": 52
+        },
+        {
+          "file": "panels/mode.png",
+          "x": 48,
+          "y": 568,
+          "width": 984,
+          "height": 92
+        },
+        {
+          "file": "buttons/mode_selector.png",
+          "x": 170,
+          "y": 592,
+          "width": 148,
+          "height": 44
+        },
+        {
+          "file": "icons/dropdown.png",
+          "x": 296,
+          "y": 610,
+          "width": 12,
+          "height": 8
+        },
+        {
+          "file": "icons/apple.png",
+          "x": 344,
+          "y": 600,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "file": "icons/bomb.png",
+          "x": 504,
+          "y": 600,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "file": "icons/clock.png",
+          "x": 680,
+          "y": 600,
+          "width": 28,
+          "height": 28
+        },
+        {
+          "file": "icons/arrow_left.png",
+          "x": 818,
+          "y": 603,
+          "width": 28,
+          "height": 22
+        },
+        {
+          "file": "icons/arrow_right.png",
+          "x": 848,
+          "y": 603,
+          "width": 28,
+          "height": 22
+        },
+        {
+          "file": "buttons/orange.png",
+          "x": 48,
+          "y": 688,
+          "width": 196,
+          "height": 56
+        },
+        {
+          "file": "panels/waiting_status.png",
+          "x": 580,
+          "y": 694,
+          "width": 196,
+          "height": 44
+        },
+        {
+          "file": "buttons/disabled.png",
+          "x": 792,
+          "y": 688,
+          "width": 240,
+          "height": 56
+        }
+      ],
+      "invite_dialog": {
+        "file": "panels/invite_dialog.png",
+        "x": 220,
+        "y": 165,
+        "width": 640,
+        "height": 430
+      }
+    },
+    "minimum_810x540": {
+      "viewport": [
+        810,
+        540
+      ],
+      "images": [
+        {
+          "file": "icons/logo.png",
+          "x": 51,
+          "y": 17,
+          "width": 120,
+          "height": 71
+        },
+        {
+          "file": "panels/header.png",
+          "x": 206,
+          "y": 17,
+          "width": 398,
+          "height": 85
+        },
+        {
+          "file": "panels/room_info.png",
+          "x": 298,
+          "y": 114,
+          "width": 214,
+          "height": 24
+        },
+        {
+          "file": "panels/player_blue.png",
+          "x": 119,
+          "y": 145,
+          "width": 228,
+          "height": 242
+        },
+        {
+          "file": "panels/player_orange.png",
+          "x": 463,
+          "y": 145,
+          "width": 228,
+          "height": 242
+        },
+        {
+          "file": "avatars/player.png",
+          "x": 174,
+          "y": 159,
+          "width": 118,
+          "height": 118
+        },
+        {
+          "file": "avatars/waiting.png",
+          "x": 518,
+          "y": 159,
+          "width": 118,
+          "height": 118
+        },
+        {
+          "file": "icons/vs.png",
+          "x": 357,
+          "y": 229,
+          "width": 96,
+          "height": 67
+        },
+        {
+          "file": "buttons/blue.png",
+          "x": 155,
+          "y": 335,
+          "width": 156,
+          "height": 37
+        },
+        {
+          "file": "buttons/green.png",
+          "x": 499,
+          "y": 335,
+          "width": 156,
+          "height": 37
+        },
+        {
+          "file": "panels/mode.png",
+          "x": 55,
+          "y": 404,
+          "width": 700,
+          "height": 65
+        },
+        {
+          "file": "buttons/mode_selector.png",
+          "x": 142,
+          "y": 421,
+          "width": 105,
+          "height": 31
+        },
+        {
+          "file": "icons/dropdown.png",
+          "x": 232,
+          "y": 433,
+          "width": 8,
+          "height": 6
+        },
+        {
+          "file": "icons/apple.png",
+          "x": 266,
+          "y": 426,
+          "width": 20,
+          "height": 20
+        },
+        {
+          "file": "icons/bomb.png",
+          "x": 379,
+          "y": 426,
+          "width": 20,
+          "height": 20
+        },
+        {
+          "file": "icons/clock.png",
+          "x": 504,
+          "y": 426,
+          "width": 20,
+          "height": 20
+        },
+        {
+          "file": "icons/arrow_left.png",
+          "x": 603,
+          "y": 428,
+          "width": 19,
+          "height": 16
+        },
+        {
+          "file": "icons/arrow_right.png",
+          "x": 624,
+          "y": 428,
+          "width": 20,
+          "height": 16
+        },
+        {
+          "file": "buttons/orange.png",
+          "x": 55,
+          "y": 489,
+          "width": 140,
+          "height": 40
+        },
+        {
+          "file": "panels/waiting_status.png",
+          "x": 433,
+          "y": 493,
+          "width": 140,
+          "height": 31
+        },
+        {
+          "file": "buttons/disabled.png",
+          "x": 584,
+          "y": 489,
+          "width": 171,
+          "height": 40
+        }
+      ],
+      "invite_dialog": {
+        "file": "panels/invite_dialog.png",
+        "x": 178,
+        "y": 117,
+        "width": 454,
+        "height": 306
+      }
+    }
+  }
+}

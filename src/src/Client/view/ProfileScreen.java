@@ -9,13 +9,10 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.Map;
 
-public final class ProfileScreen extends JFrame {
+public final class ProfileScreen extends JPanel implements ClientScreen {
     private final JPanel values = new JPanel(new GridLayout(0, 2, 8, 8));
 
     public ProfileScreen(String playerId) {
-        setTitle("Hồ sơ người chơi");
-        setSize(440, 320);
-        setLocationRelativeTo(null);
         setLayout(new BorderLayout(8, 8));
 
         // ── Header with logo ────────────────────────────────────────────────
@@ -44,13 +41,11 @@ public final class ProfileScreen extends JFrame {
         back.setFocusPainted(false);
         back.setBorderPainted(false);
         back.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        back.addActionListener(e -> dispose());
+        back.addActionListener(e -> MainClientFrame.instance().showLobby());
 
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         bottomPanel.add(back);
         add(bottomPanel, BorderLayout.SOUTH);
-
-        setVisible(true);
 
         try {
             TcpQuery.single(GameClientSession.instance().client(),

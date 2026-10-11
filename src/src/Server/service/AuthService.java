@@ -64,7 +64,14 @@ public final class AuthService {
         } catch (IllegalArgumentException e) {
             throw new AuthenticationException("Invalid role or status");
         }
-        accountRepository.updateAccount(accountId, username, accountRole, accountStatus, password == null || password.isBlank() ? null : PasswordHasher.hash(password));
+        try {
+            accountRepository.updateAccount(accountId, username, accountRole, accountStatus,
+                    password == null || password.isBlank() ? null : PasswordHasher.hash(password));
+        } catch (SQLException e) {
+            if (e.getSQLState() != null && e.getSQLState().startsWith("23"))
+                throw new AuthenticationException("Username already exists or account is still in use");
+            throw e;
+        }
     }
 
     public void createAdminAccount(String username, String password, String role) throws AuthenticationException, SQLException {

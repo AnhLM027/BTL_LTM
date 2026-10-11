@@ -3,12 +3,17 @@ package Client.session;
 import Client.Constants;
 import Client.network.TcpGameClient;
 import Server.network.ProtocolMessage;
-import Client.view.RunGame;
+import Client.view.MainClientFrame;
+import Client.fx.FxClientMain;
+import Client.fx.FxScreenNavigator;
+import javafx.application.Platform;
 
 import javax.swing.SwingUtilities;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -20,6 +25,11 @@ public final class GameClientSession implements TcpGameClient.MessageListener, A
     private final TcpGameClient client = new TcpGameClient();
     private volatile CompletableFuture<Identity> pendingLogin;
     private volatile Identity identity;
+    /** True from MATCH_REJOIN until the restored game/result has been shown. */
+    private volatile boolean rejoiningMatch;
+    private final Object rejoinLock = new Object();
+    private final List<ProtocolMessage> rejoinSnapshot = new ArrayList<>();
+    private boolean rejoinOpenScheduled;
 
     private GameClientSession() {
         client.addListener(this);
@@ -40,6 +50,10 @@ public final class GameClientSession implements TcpGameClient.MessageListener, A
 
     public boolean isAuthenticated() {
         return identity != null && client.isConnected();
+    }
+
+    public boolean isRejoiningMatch() {
+        return rejoiningMatch;
     }
 
     public synchronized Identity login(String username, String password) throws Exception {
@@ -75,12 +89,96 @@ public final class GameClientSession implements TcpGameClient.MessageListener, A
     @Override
     public void onMessage(ProtocolMessage message) {
         if (message.type().equals("MATCH_REJOIN") && identity != null) {
+            // MATCH_REJOIN is only a notification.  The actual game snapshot
+            // (MATCH_PREPARE, FRUIT_CONFIG, BASKET_CONFIG and FRUIT_SPAWN)
+            // follows immediately afterwards.  Do not construct RunGame from
+            // this message: doing so races the snapshot and leaves matchId or
+            // basketId at their default values.
+            synchronized (rejoinLock) {
+                rejoinSnapshot.clear();
+                rejoinSnapshot.add(message);
+                rejoiningMatch = true;
+                rejoinOpenScheduled = false;
+            }
+            return;
+        }
+        if (message.type().equals("MATCH_PREPARE") && rejoiningMatch && identity != null) {
+            synchronized (rejoinLock) {
+                rejoinSnapshot.add(message);
+            }
+            return;
+        }
+        if (rejoiningMatch && isRejoinSnapshotMessage(message)) {
+            boolean openNow = false;
+            synchronized (rejoinLock) {
+                rejoinSnapshot.add(message);
+                if (message.type().equals("MATCH_PREPARE_END") && !rejoinOpenScheduled) {
+                    rejoinOpenScheduled = true;
+                    openNow = true;
+                }
+            }
+            if (!openNow) return;
             Identity currentIdentity = identity;
-            runOnEventThreadAndWait(() -> {
-                RunGame game = new RunGame(client, currentIdentity.playerId());
-                game.onMessage(message);
-                game.setVisible(true);
-            });
+            Runnable open = () -> {
+                List<ProtocolMessage> snapshot;
+                synchronized (rejoinLock) {
+                    snapshot = List.copyOf(rejoinSnapshot);
+                    rejoinOpenScheduled = false;
+                }
+                if (FxClientMain.isActive()) {
+                    FxScreenNavigator navigator = FxScreenNavigator.current();
+                    if (navigator != null) {
+                        navigator.showGame(snapshot.get(1));
+                        if (navigator.currentGame() != null) {
+                            for (ProtocolMessage item : snapshot.subList(2, snapshot.size()))
+                                navigator.currentGame().onMessage(item);
+                        }
+                        synchronized (rejoinLock) {
+                            List<ProtocolMessage> late = new ArrayList<>(rejoinSnapshot.subList(snapshot.size(), rejoinSnapshot.size()));
+                            rejoiningMatch = false;
+                            for (ProtocolMessage item : late) navigator.currentGame().onMessage(item);
+                        }
+                    }
+                } else {
+                    MainClientFrame.instance().showGame(client, currentIdentity.playerId(), snapshot.get(1));
+                    if (MainClientFrame.instance().currentGame() != null) {
+                        for (ProtocolMessage item : snapshot.subList(2, snapshot.size()))
+                            MainClientFrame.instance().currentGame().onMessage(item);
+                        synchronized (rejoinLock) {
+                            List<ProtocolMessage> late = new ArrayList<>(rejoinSnapshot.subList(snapshot.size(), rejoinSnapshot.size()));
+                            rejoiningMatch = false;
+                            for (ProtocolMessage item : late) MainClientFrame.instance().currentGame().onMessage(item);
+                        }
+                    }
+                }
+            };
+            if (FxClientMain.isActive()) {
+                Platform.runLater(open);
+            } else {
+                runOnEventThreadAndWait(open);
+            }
+            return;
+        }
+        if (message.type().equals("MATCH_RESULT") && rejoiningMatch && identity != null) {
+            rejoiningMatch = false;
+            if (FxClientMain.isActive()) {
+                Platform.runLater(() -> {
+                    FxScreenNavigator navigator = FxScreenNavigator.current();
+                    if (navigator != null) navigator.showResult(message);
+                });
+            } else {
+                runOnEventThreadAndWait(() -> {
+                    try {
+                        MainClientFrame.instance().showEndGame(
+                                message.requiredField("result"),
+                                message.requiredField("score"),
+                                message.requiredField("opponentScore"));
+                    } catch (Exception ignored) {
+                        // The regular game listener will display the result if
+                        // this fallback arrives after the screen is installed.
+                    }
+                });
+            }
             return;
         }
         CompletableFuture<Identity> future = pendingLogin;
@@ -92,6 +190,13 @@ public final class GameClientSession implements TcpGameClient.MessageListener, A
         } else if (message.type().equals("LOGIN_FAILED") || message.type().equals("ERROR")) {
             future.completeExceptionally(new IOException(message.fields().getOrDefault("reason", message.fields().getOrDefault("message", "Login failed"))));
         }
+    }
+
+    private boolean isRejoinSnapshotMessage(ProtocolMessage message) {
+        return switch (message.type()) {
+            case "FRUIT_CONFIG", "BASKET_CONFIG", "FRUIT_SPAWN", "MATCH_PREPARE_END", "MATCH_START", "SCORE_UPDATE" -> true;
+            default -> false;
+        };
     }
 
     @Override

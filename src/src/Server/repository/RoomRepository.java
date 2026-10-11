@@ -17,7 +17,7 @@ public final class RoomRepository {
         String query = """
                 SELECT * FROM room
                 WHERE (host_player_id = ? OR guest_player_id = ?)
-                  AND room_state IN ('WAITING', 'FULL', 'PREPARING', 'READY', 'PLAYING', 'WAITING_REMATCH')
+                  AND room_state IN ('WAITING', 'FULL', 'PREPARING', 'READY', 'PLAYING', 'WAITING_REMATCH', 'FINISHED')
                 ORDER BY room_id DESC
                 LIMIT 1
                 """;
@@ -34,7 +34,7 @@ public final class RoomRepository {
         String query = """
                 SELECT room_state, host_player_id, host_ready, guest_ready FROM room
                 WHERE (host_player_id = ? OR guest_player_id = ?)
-                  AND room_state IN ('WAITING', 'FULL', 'PREPARING', 'READY', 'PLAYING', 'WAITING_REMATCH')
+                  AND room_state IN ('WAITING', 'FULL', 'PREPARING', 'READY', 'PLAYING', 'WAITING_REMATCH', 'FINISHED')
                 ORDER BY room_id DESC
                 LIMIT 1
                 """;
@@ -56,7 +56,7 @@ public final class RoomRepository {
         String query = """
                 SELECT 1 FROM room
                 WHERE (host_player_id = ? OR guest_player_id = ?)
-                  AND room_state IN ('WAITING', 'FULL', 'PREPARING', 'READY', 'PLAYING', 'WAITING_REMATCH')
+                  AND room_state IN ('WAITING', 'FULL', 'PREPARING', 'READY', 'PLAYING', 'WAITING_REMATCH', 'FINISHED')
                 LIMIT 1
                 """;
         try (PreparedStatement statement = connection.prepareStatement(query)) {
@@ -135,9 +135,23 @@ public final class RoomRepository {
     }
 
     public void markFinished(Connection connection, long roomId) throws SQLException {
-        try (PreparedStatement statement = connection.prepareStatement("UPDATE room SET room_state='FINISHED', host_ready=FALSE, guest_ready=FALSE WHERE room_id=?")) {
+        // A finished match keeps its room and both participants so they can
+        // immediately start another match. Match history is persisted in
+        // GAME_MATCH/MATCH_PLAYER; the room itself returns to the reusable
+        // FULL state with readiness cleared.
+        try (PreparedStatement statement = connection.prepareStatement("UPDATE room SET room_state='FULL', host_ready=FALSE, guest_ready=FALSE, updated_at=CURRENT_TIMESTAMP WHERE room_id=?")) {
             statement.setLong(1, roomId);
             if (statement.executeUpdate() != 1) throw new SQLException("Room was not found");
+        }
+    }
+
+    /** Converts rooms finalized by older server builds back to a reusable room. */
+    public boolean reopenFinished(Connection connection, long roomId) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "UPDATE room SET room_state='FULL', host_ready=FALSE, guest_ready=FALSE, updated_at=CURRENT_TIMESTAMP "
+                        + "WHERE room_id=? AND room_state='FINISHED'")) {
+            statement.setLong(1, roomId);
+            return statement.executeUpdate() == 1;
         }
     }
 
@@ -163,7 +177,8 @@ public final class RoomRepository {
     public Optional<MatchRoom> leaveRoom(Connection connection, long roomId, long playerId) throws SQLException, Server.service.RoomException {
         MatchRoom room = findById(connection, roomId, true)
                 .orElseThrow(() -> new Server.service.RoomException("Room was not found"));
-        if (room.state() != RoomState.WAITING && room.state() != RoomState.FULL) {
+        if (room.state() != RoomState.WAITING && room.state() != RoomState.FULL
+                && room.state() != RoomState.FINISHED) {
             throw new Server.service.RoomException("Cannot leave a room that is already " + room.state().name().toLowerCase());
         }
         if (room.hostPlayerId() == playerId) {
@@ -177,7 +192,7 @@ public final class RoomRepository {
         } else if (room.guestPlayerId() != null && room.guestPlayerId() == playerId) {
             // Guest leaves → revert to WAITING
             try (PreparedStatement st = connection.prepareStatement(
-                    "UPDATE room SET guest_player_id=NULL, room_state='WAITING', updated_at=CURRENT_TIMESTAMP WHERE room_id=?")) {
+                    "UPDATE room SET guest_player_id=NULL, room_state='WAITING', host_ready=FALSE, guest_ready=FALSE, updated_at=CURRENT_TIMESTAMP WHERE room_id=?")) {
                 st.setLong(1, roomId);
                 st.executeUpdate();
             }
