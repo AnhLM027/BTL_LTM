@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" type="Application" factoryName="Application" name="ServerMain">
+    <option name="MAIN_CLASS_NAME" value="Server.ServerMain" />
+    <module name="fruit-battle-online" />
+    <option name="PROGRAM_PARAMETERS" value="12345" />
+    <option name="VM_PARAMETERS" value="-Dfile.encoding=UTF-8" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

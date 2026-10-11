@@ -3,96 +3,104 @@ package Client.view;
 import Client.ui.AssetLoader;
 import Client.ui.ScaledBackgroundPanel;
 
-import javax.swing.*;
-import java.awt.*;
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.SwingConstants;
+import javax.swing.Timer;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.GridLayout;
 
-/**
- * Screen displayed after a match ends. Shows the result image (WIN / LOSE / DRAW)
- * and both players' scores before returning the user to the Lobby.
- */
-public class EndGameScreen extends JFrame {
+/** Result card displayed inside MainClientFrame. */
+public final class EndGameScreen extends JPanel implements ClientScreen {
+    private final Timer returnTimer;
+    private int secondsRemaining = 5;
+    private boolean returned;
 
-    /**
-     * @param result        "WIN", "LOSE", or "DRAW" (from the server)
-     * @param myScore       this player's final score
-     * @param opponentScore the opponent's final score
-     * @param onReturn      callback run when the user clicks "Trở về Lobby"
-     */
     public EndGameScreen(String result, String myScore, String opponentScore, Runnable onReturn) {
-        setTitle("Kết thúc trận");
-        setSize(810, 540);
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setLocationRelativeTo(null);
+        setLayout(new BorderLayout());
+        ScaledBackgroundPanel background = new ScaledBackgroundPanel(
+                AssetLoader.icon("backgrounds/lobby-orchard-background.png"));
+        background.setLayout(new BorderLayout());
+        add(background, BorderLayout.CENTER);
 
-        // --- Background ---
-        ImageIcon bg = AssetLoader.icon("backgrounds/lobby-orchard-background.png");
-        ScaledBackgroundPanel bgPanel = new ScaledBackgroundPanel(bg);
-        bgPanel.setLayout(new BorderLayout(0, 0));
-        setContentPane(bgPanel);
-
-        // --- Result image (WIN / LOSE / DRAW) ---
         String assetPath = switch (result) {
-            case "WIN"  -> "results/result-win.png";
+            case "WIN" -> "results/result-win.png";
             case "LOSE" -> "results/result-lose.png";
-            default     -> "results/result-draw.png";
+            default -> "results/result-draw.png";
         };
-        ImageIcon resultIcon = AssetLoader.icon(assetPath);
-        JLabel resultLabel;
-        if (resultIcon != null) {
-            resultLabel = new JLabel(AssetLoader.scaleToFit(resultIcon, 340, 136), SwingConstants.CENTER);
-        } else {
-            resultLabel = new JLabel(result, SwingConstants.CENTER);
+        var resultIcon = AssetLoader.icon(assetPath);
+        JLabel resultLabel = resultIcon == null ? new JLabel(result, SwingConstants.CENTER)
+                : new JLabel(AssetLoader.scaleToFit(resultIcon, 340, 136), SwingConstants.CENTER);
+        if (resultIcon == null) {
             resultLabel.setFont(new Font("Arial", Font.BOLD, 56));
             resultLabel.setForeground(Color.WHITE);
         }
         resultLabel.setBorder(BorderFactory.createEmptyBorder(40, 0, 20, 0));
 
-        // --- Score display ---
-        JPanel scorePanel = new JPanel(new GridLayout(1, 3, 20, 0));
-        scorePanel.setOpaque(false);
-        scorePanel.setBorder(BorderFactory.createEmptyBorder(10, 60, 10, 60));
+        JPanel scores = new JPanel(new GridLayout(1, 3, 20, 0));
+        scores.setOpaque(false);
+        scores.setBorder(BorderFactory.createEmptyBorder(10, 60, 10, 60));
+        scores.add(score("Bạn: " + myScore, new Color(80, 200, 120)));
+        scores.add(score("VS", new Color(255, 220, 100)));
+        scores.add(score("Đối thủ: " + opponentScore, new Color(255, 120, 100)));
 
-        JLabel myScoreLbl = makeScoreLabel("Bạn: " + myScore, new Color(80, 200, 120));
-        JLabel vsLbl      = makeScoreLabel("VS", new Color(255, 220, 100));
-        JLabel oppLbl     = makeScoreLabel("Đối thủ: " + opponentScore, new Color(255, 120, 100));
-        scorePanel.add(myScoreLbl);
-        scorePanel.add(vsLbl);
-        scorePanel.add(oppLbl);
-
-        // --- Center panel ---
         JPanel center = new JPanel(new BorderLayout(0, 10));
         center.setOpaque(false);
         center.add(resultLabel, BorderLayout.CENTER);
-        center.add(scorePanel, BorderLayout.SOUTH);
+        center.add(scores, BorderLayout.SOUTH);
+        background.add(center, BorderLayout.CENTER);
 
-        // --- Return button ---
-        JButton returnBtn = new JButton("Trở về Lobby");
-        returnBtn.setFont(new Font("Arial", Font.BOLD, 16));
-        returnBtn.setPreferredSize(new Dimension(180, 44));
-        returnBtn.setForeground(Color.WHITE);
-        returnBtn.setBackground(new Color(0, 102, 204));
-        returnBtn.setFocusPainted(false);
-        returnBtn.setBorderPainted(false);
-        returnBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        returnBtn.addActionListener(e -> {
-            dispose();
+        JLabel countdown = new JLabel("Tự động quay về phòng cũ sau 5 giây", SwingConstants.CENTER);
+        countdown.setForeground(Color.WHITE);
+        countdown.setFont(new Font("Arial", Font.BOLD, 15));
+
+        JButton back = new JButton("Trở về phòng cũ");
+        back.setFont(new Font("Arial", Font.BOLD, 16));
+        back.setPreferredSize(new Dimension(180, 44));
+        back.setForeground(Color.WHITE);
+        back.setBackground(new Color(0, 102, 204));
+        back.setFocusPainted(false);
+        back.setBorderPainted(false);
+        back.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        returnTimer = new Timer(1_000, null);
+        Runnable goBack = () -> {
+            if (returned) return;
+            returned = true;
+            returnTimer.stop();
             onReturn.run();
+        };
+        back.addActionListener(event -> goBack.run());
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 16));
+        actions.setOpaque(false);
+        actions.add(countdown);
+        actions.add(back);
+        background.add(actions, BorderLayout.SOUTH);
+
+        returnTimer.addActionListener(event -> {
+            secondsRemaining--;
+            if (secondsRemaining <= 0) {
+                countdown.setText("Đang mở phòng cũ...");
+                goBack.run();
+            } else {
+                countdown.setText("Tự động quay về phòng cũ sau " + secondsRemaining + " giây");
+            }
         });
-
-        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 16));
-        bottomPanel.setOpaque(false);
-        bottomPanel.add(returnBtn);
-
-        bgPanel.add(center, BorderLayout.CENTER);
-        bgPanel.add(bottomPanel, BorderLayout.SOUTH);
-
-        setVisible(true);
+        returnTimer.start();
     }
 
-    private JLabel makeScoreLabel(String text, Color color) {
-        JLabel lbl = new JLabel(text, SwingConstants.CENTER);
-        lbl.setFont(new Font("Arial", Font.BOLD, 26));
-        lbl.setForeground(color);
-        return lbl;
+    @Override public void onHide() { returnTimer.stop(); }
+
+    private JLabel score(String text, Color color) {
+        JLabel label = new JLabel(text, SwingConstants.CENTER);
+        label.setFont(new Font("Arial", Font.BOLD, 26));
+        label.setForeground(color);
+        return label;
     }
 }

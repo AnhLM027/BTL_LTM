@@ -90,6 +90,40 @@ public final class MatchService {
         }
     }
 
+    /** Returns a match snapshot for timeout/reconnect requests. */
+    public java.util.Optional<GameMatch> findMatch(long matchId) throws SQLException {
+        try (Connection connection = DatabaseConfig.openConnection()) {
+            return matches.find(connection, matchId, false);
+        }
+    }
+
+    public List<GameMatch> pendingMatches() throws SQLException {
+        try (Connection connection = DatabaseConfig.openConnection()) {
+            return matches.findPending(connection);
+        }
+    }
+
+    /** Cancels a match that never started after the reconnect grace period. */
+    public boolean cancelPendingMatch(long matchId) throws SQLException {
+        try (Connection connection = DatabaseConfig.openConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                GameMatch match = matches.find(connection, matchId, true).orElse(null);
+                if (match == null || (match.state() != MatchState.PREPARING && match.state() != MatchState.READY)) {
+                    connection.commit();
+                    return false;
+                }
+                matches.cancelPending(connection, matchId);
+                rooms.cancel(connection, match.roomId());
+                connection.commit();
+                return true;
+            } catch (SQLException exception) {
+                connection.rollback();
+                throw exception;
+            }
+        }
+    }
+
     public java.util.Optional<MatchPreparation> rejoinPreparation(long playerId) throws SQLException {
         try (Connection connection = DatabaseConfig.openConnection()) {
             var match = matches.findActiveForPlayer(connection, playerId);
@@ -115,6 +149,12 @@ public final class MatchService {
             try {
                 MatchRoom room = rooms.findById(connection, roomId, true)
                         .orElseThrow(() -> new RoomException("Room was not found"));
+                // Rooms finalized by an older server build may still be
+                // marked FINISHED. Reopen them before validating a rematch.
+                if (room.state() == RoomState.FINISHED) {
+                    rooms.reopenFinished(connection, roomId);
+                    room = rooms.findById(connection, roomId, true).orElseThrow();
+                }
                 if (room.hostPlayerId() != hostPlayerId || room.state() != RoomState.FULL || !room.hasGuest()) {
                     throw new RoomException("Only the full room host can start a match");
                 }
@@ -190,8 +230,12 @@ public final class MatchService {
                 matches.updatePlayerResult(connection, matchId, second.playerId(), secondResult);
                 matches.updatePlayerStatistics(connection, first, firstResult == MatchResult.WIN);
                 matches.updatePlayerStatistics(connection, second, secondResult == MatchResult.WIN);
-                Long winner = firstResult == MatchResult.WIN ? first.playerId()
-                        : secondResult == MatchResult.WIN ? second.playerId() : null;
+                // Do not use a numeric conditional expression here: the
+                // primitive playerId branches would unbox a null winner on a
+                // DRAW and abort finalization with NullPointerException.
+                Long winner = null;
+                if (firstResult == MatchResult.WIN) winner = first.playerId();
+                else if (secondResult == MatchResult.WIN) winner = second.playerId();
                 matches.finish(connection, matchId, winner);
                 rooms.markFinished(connection, match.roomId());
                 List<MatchPlayer> finalized = matches.findPlayers(connection, matchId, false);
@@ -220,28 +264,35 @@ public final class MatchService {
     }
 
     private List<FruitSpawn> classicSpawns(List<Fruit> catalog, Random random) {
-        java.util.Map<Integer, Integer> bombs = new java.util.HashMap<>();
-        while (bombs.size() < 4) {
-            int candidate = random.nextInt(20);
-            long lateBombs = bombs.keySet().stream().filter(slot -> slot >= 15).count();
-            if (candidate >= 15 && lateBombs >= 2) continue;
-            if (bombs.keySet().stream().anyMatch(slot -> Math.abs(slot - candidate) < 2)) continue;
-            int x = 50 + random.nextInt(701);
-            boolean blocksSafeLane = bombs.entrySet().stream().anyMatch(existing ->
-                    Math.abs(existing.getKey() - candidate) * 1_400L < 3_000L
-                            && Math.abs(existing.getValue() - x) < 150);
-            if (blocksSafeLane) continue;
-            bombs.put(candidate, x);
-        }
         List<FruitSpawn> spawns = new ArrayList<>();
-        for (int index = 0; index < 20; index++) {
-            long offset = index * 1_400L;
-            boolean bomb = bombs.containsKey(index);
-            Fruit fruit = bomb ? null : catalog.get(random.nextInt(catalog.size()));
-            spawns.add(new FruitSpawn(0, 0, fruit == null ? null : fruit.fruitId(), bomb, index, offset,
-                    bomb ? bombs.get(index) : 50 + random.nextInt(701), fallDuration(offset)));
-        }
+        int spawnOrder = 0;
+
+        // A short empty interval follows every phase, so players can see the
+        // speed-up notice only after the previous objects have landed.
+        spawnOrder = appendClassicPhase(spawns, catalog, random, spawnOrder,
+                6, 1, 0, 800, 4_000);        // Last object ends at 8.8s.
+        spawnOrder = appendClassicPhase(spawns, catalog, random, spawnOrder,
+                4, 2, 11_000, 1_000, 4_000); // Last object ends at 20.0s.
+        appendClassicPhase(spawns, catalog, random, spawnOrder,
+                6, 1, 22_200, 700, 2_500);   // Last object ends at 28.9s.
         return spawns;
+    }
+
+    private int appendClassicPhase(List<FruitSpawn> spawns, List<Fruit> catalog, Random random,
+                                   int spawnOrder, int fruitCount, int bombCount,
+                                   long firstOffsetMs, long intervalMs, int fallDurationMs) {
+        List<Boolean> objects = new ArrayList<>();
+        for (int index = 0; index < fruitCount; index++) objects.add(false);
+        for (int index = 0; index < bombCount; index++) objects.add(true);
+        java.util.Collections.shuffle(objects, random);
+        for (int index = 0; index < objects.size(); index++) {
+            boolean bomb = objects.get(index);
+            Fruit fruit = bomb ? null : catalog.get(random.nextInt(catalog.size()));
+            spawns.add(new FruitSpawn(0, 0, fruit == null ? null : fruit.fruitId(), bomb,
+                    spawnOrder++, firstOffsetMs + index * intervalMs,
+                    50 + random.nextInt(701), fallDurationMs));
+        }
+        return spawnOrder;
     }
 
     private List<FruitSpawn> orderSpawns(List<Fruit> catalog, List<Integer> targets, Random random) {

@@ -4,13 +4,14 @@ import Client.controller.LoginController;
 import Client.view.admin.AdminDashboardScreen;
 import Client.session.GameClientSession;
 import Client.ui.AssetLoader;
+import Client.ui.AssetPaths;
 import Client.ui.ScaledBackgroundPanel;
 
 import javax.swing.*;
 import java.awt.*;
 import java.io.InputStream;
 
-public class LoginScreen {
+public class LoginScreen extends JPanel implements ClientScreen {
     private final LoginController loginController;
 
     public LoginScreen() {
@@ -18,10 +19,7 @@ public class LoginScreen {
 
         Font customFont = loadCustomFont();
 
-        JFrame loginFrame = new JFrame("Đăng nhập");
-        loginFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        loginFrame.setSize(810, 540);
-        loginFrame.setLocationRelativeTo(null);
+        setLayout(new BorderLayout());
 
         // Background
         ImageIcon backgroundIcon = AssetLoader.icon("backgrounds/login-orchard-background.png");
@@ -95,12 +93,11 @@ public class LoginScreen {
         panel.add(btnSubmit, gbc);
 
         backgroundLabel.add(panel);
-        loginFrame.add(backgroundLabel);
+        add(backgroundLabel, BorderLayout.CENTER);
 
         // --- Button actions ---
         btnBack.addActionListener(e -> {
-            loginFrame.dispose();
-            new MainScreen();
+            MainClientFrame.instance().showMain();
         });
 
         btnSubmit.addActionListener(e -> {
@@ -108,7 +105,7 @@ public class LoginScreen {
             String password = new String(passwordField.getPassword());
 
             if (username.isEmpty() || password.isEmpty()) {
-                JOptionPane.showMessageDialog(loginFrame,
+                JOptionPane.showMessageDialog(this,
                         "Vui lòng nhập tên đăng nhập và mật khẩu", "Lỗi", JOptionPane.WARNING_MESSAGE);
                 return;
             }
@@ -118,23 +115,21 @@ public class LoginScreen {
                     GameClientSession.Identity identity = GameClientSession.instance().identity();
                     if (identity.role().equals("ADMIN")) {
                         new AdminDashboardScreen(Long.toString(identity.playerId()));
-                        loginFrame.dispose();
+                        MainClientFrame.instance().setVisible(false);
                     } else {
-                        new LobbyScreen(Long.toString(identity.playerId()), identity.displayName());
-                        loginFrame.dispose();
+                        MainClientFrame.instance().showLobby();
                     }
                 } else {
-                    JOptionPane.showMessageDialog(loginFrame,
+                    JOptionPane.showMessageDialog(this,
                             "Đăng nhập thất bại: " + loginController.lastError(), "Lỗi đăng nhập", JOptionPane.ERROR_MESSAGE);
                 }
             } catch (Exception ex) {
-                JOptionPane.showMessageDialog(loginFrame,
+                JOptionPane.showMessageDialog(this,
                         "Đã xảy ra lỗi kết nối. Vui lòng thử lại sau.", "Lỗi", JOptionPane.ERROR_MESSAGE);
                 ex.printStackTrace();
             }
         });
 
-        loginFrame.setVisible(true);
     }
 
     // --- Helpers ---
@@ -203,7 +198,7 @@ public class LoginScreen {
      * Falls back to Serif if the font cannot be found.
      */
     private Font loadCustomFont() {
-        String[] candidates = {"/Client/assets/FVF.ttf", "/client/assets/FVF.ttf", "../assets/FVF.ttf"};
+        String[] candidates = {"/Client/assets/" + AssetPaths.UI_FONT, "/client/assets/" + AssetPaths.UI_FONT, "../assets/" + AssetPaths.UI_FONT};
         for (String path : candidates) {
             try (InputStream is = getClass().getResourceAsStream(path)) {
                 if (is != null) {

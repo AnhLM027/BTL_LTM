@@ -14,6 +14,7 @@ public final class AssetLoader {
     }
 
     public static ImageIcon icon(String relativePath) {
+        relativePath = AssetPaths.normalize(relativePath);
         URL resource = AssetLoader.class.getResource("/Client/assets/" + relativePath);
         if (resource == null) {
             resource = AssetLoader.class.getResource("/client/assets/" + relativePath);

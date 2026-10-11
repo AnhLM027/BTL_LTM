@@ -1,6 +1,6 @@
 package Client.view.admin;
 
-import Client.view.LoginScreen;
+import Client.view.MainClientFrame;
 import Client.controller.LoginController;
 
 import javax.swing.*;
@@ -63,7 +63,8 @@ public class AdminDashboardScreen {
                 // Close admin frame and go back to login screen
                 loginController.logout(playerID);
                 adminFrame.dispose();
-                new LoginScreen();
+                MainClientFrame.instance().showLogin();
+                MainClientFrame.instance().setVisible(true);
             }
         });
         panel.add(btnLogout, gbc);

@@ -2,13 +2,14 @@ package Client.view;
 
 import Client.controller.RegisterController;
 import Client.ui.AssetLoader;
+import Client.ui.AssetPaths;
 import Client.ui.ScaledBackgroundPanel;
 
 import javax.swing.*;
 import java.awt.*;
 import java.io.InputStream;
 
-public class RegisterScreen {
+public class RegisterScreen extends JPanel implements ClientScreen {
     private final RegisterController registerController;
 
     public RegisterScreen() {
@@ -16,13 +17,10 @@ public class RegisterScreen {
 
         Font customFont = loadCustomFont();
 
-        JFrame registerFrame = new JFrame("Đăng ký");
-        registerFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        registerFrame.setSize(810, 540);
-        registerFrame.setLocationRelativeTo(null);
+        setLayout(new BorderLayout());
 
         // Background
-        ImageIcon backgroundIcon = AssetLoader.icon("backgrounds/login-orchard-background.png");
+        ImageIcon backgroundIcon = AssetLoader.icon("backgrounds/bg1.gif");
         ScaledBackgroundPanel backgroundLabel = new ScaledBackgroundPanel(backgroundIcon);
         backgroundLabel.setLayout(new GridBagLayout());
         backgroundLabel.setPreferredSize(new Dimension(810, 540));
@@ -108,12 +106,11 @@ public class RegisterScreen {
         panel.add(btnSubmit, gbc);
 
         backgroundLabel.add(panel);
-        registerFrame.add(backgroundLabel);
+        add(backgroundLabel, BorderLayout.CENTER);
 
         // --- Button actions ---
         btnBack.addActionListener(e -> {
-            registerFrame.dispose();
-            new MainScreen();
+            MainClientFrame.instance().showMain();
         });
 
         btnSubmit.addActionListener(e -> {
@@ -122,25 +119,25 @@ public class RegisterScreen {
             String confirmPassword = new String(confirmPasswordField.getPassword());
 
             if (username.isEmpty() || password.isEmpty() || confirmPassword.isEmpty()) {
-                JOptionPane.showMessageDialog(registerFrame,
+                JOptionPane.showMessageDialog(this,
                         "Vui lòng nhập đầy đủ thông tin!", "Lỗi", JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
             if (username.length() < 3) {
-                JOptionPane.showMessageDialog(registerFrame,
+                JOptionPane.showMessageDialog(this,
                         "Tên đăng nhập phải có ít nhất 3 ký tự!", "Lỗi", JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
             if (password.length() < 6) {
-                JOptionPane.showMessageDialog(registerFrame,
+                JOptionPane.showMessageDialog(this,
                         "Mật khẩu phải có ít nhất 6 ký tự!", "Lỗi", JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
             if (!password.equals(confirmPassword)) {
-                JOptionPane.showMessageDialog(registerFrame,
+                JOptionPane.showMessageDialog(this,
                         "Mật khẩu xác nhận không khớp!", "Lỗi", JOptionPane.WARNING_MESSAGE);
                 return;
             }
@@ -148,18 +145,16 @@ public class RegisterScreen {
             String error = registerController.register(username, password);
             if (error == null) {
                 // null = success
-                JOptionPane.showMessageDialog(registerFrame,
+                JOptionPane.showMessageDialog(this,
                         "Đăng ký thành công!", "Thành công", JOptionPane.INFORMATION_MESSAGE);
-                registerFrame.dispose();
-                new MainScreen();
+                MainClientFrame.instance().showMain();
             } else {
                 // non-null = error message from server or network
-                JOptionPane.showMessageDialog(registerFrame,
+                JOptionPane.showMessageDialog(this,
                         error, "Đăng ký thất bại", JOptionPane.ERROR_MESSAGE);
             }
         });
 
-        registerFrame.setVisible(true);
     }
 
     // --- Helpers ---
@@ -219,7 +214,7 @@ public class RegisterScreen {
     }
 
     private Font loadCustomFont() {
-        String[] candidates = {"/Client/assets/FVF.ttf", "/client/assets/FVF.ttf", "../assets/FVF.ttf"};
+        String[] candidates = {"/Client/assets/" + AssetPaths.UI_FONT, "/client/assets/" + AssetPaths.UI_FONT, "../assets/" + AssetPaths.UI_FONT};
         for (String path : candidates) {
             try (InputStream is = getClass().getResourceAsStream(path)) {
                 if (is != null) {

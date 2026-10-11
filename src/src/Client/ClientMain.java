@@ -1,10 +1,9 @@
 package Client;
 
-import Client.view.MainScreen;
+import Client.view.MainClientFrame;
 
 public class ClientMain {
     public static void main(String[] args) {
-        MainScreen mainScreen = new MainScreen();
-
+        MainClientFrame.launch();
     }
 }

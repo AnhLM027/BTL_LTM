@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" type="Application" factoryName="Application" name="FxClientMain">
+    <option name="MAIN_CLASS_NAME" value="Client.fx.FxClientMain" />
+    <module name="fruit-battle-online" />
+    <option name="VM_PARAMETERS" value="-Dfile.encoding=UTF-8 --enable-native-access=ALL-UNNAMED" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

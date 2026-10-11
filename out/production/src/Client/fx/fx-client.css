@@ -1,0 +1,168 @@
+/* Keep the pixel font consistent across screens, controls, tables and dialogs. */
+.fx-main-view, .fx-main-view *,
+.fx-form-view, .fx-form-view *,
+.fx-lobby-view, .fx-lobby-view *,
+.fx-waiting-room, .fx-waiting-room *,
+.fx-game-view, .fx-game-view *,
+.fx-result-view, .fx-result-view *,
+.fx-data-view, .fx-data-view *,
+.fx-dialog, .fx-dialog *,
+.combo-box-popup, .combo-box-popup *,
+.context-menu, .context-menu *,
+.tooltip {
+    -fx-font-family: "Pixelify Sans", "Consolas", "Courier New", monospace;
+}
+.fx-main-view {
+    -fx-background-color: #fff7df;
+    -fx-font-family: "Pixelify Sans", "Consolas", "Courier New", monospace;
+}
+.fx-form-view, .fx-lobby-view { -fx-font-family: "Pixelify Sans", "Consolas", "Courier New", monospace; }
+.form-card, .lobby-card {
+    -fx-background-color: rgba(255, 252, 240, 0.92);
+    -fx-background-radius: 18px;
+    -fx-border-color: #267253;
+    -fx-border-radius: 18px;
+    -fx-border-width: 1.5px;
+}
+.form-card { -fx-background-color: rgba(255, 252, 240, 0.82); -fx-padding: 28px 34px; }
+.form-label { -fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #115336; }
+.form-title, .screen-title {
+    -fx-font-size: 30px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #115336;
+}
+.form-card .text-field, .form-card .password-field {
+    -fx-font-size: 16px;
+    -fx-pref-height: 44px;
+    -fx-background-radius: 7px;
+}
+.form-status { -fx-text-fill: #a03325; -fx-wrap-text: true; -fx-alignment: center; }
+.secondary-button {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #185c42;
+    -fx-background-color: #edf6eb;
+    -fx-border-color: #267253;
+    -fx-border-radius: 7px;
+    -fx-background-radius: 7px;
+    -fx-padding: 10px 22px;
+    -fx-cursor: hand;
+}
+.secondary-button:hover { -fx-background-color: #d8edd8; }
+.secondary-button:focused, .primary-button:focused { -fx-border-color: #f1b51c; -fx-border-width: 2px; }
+.green-button { -fx-background-color: #2b8a50; }
+.lobby-greeting, .lobby-status { -fx-font-size: 18px; -fx-text-fill: #17452f; }
+.lobby-stat { -fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #17452f; }
+.lobby-brand { -fx-font-size: 25px; -fx-font-weight: bold; -fx-text-fill: #115336; }
+.lobby-meta { -fx-padding: 2px 4px 4px 4px; }
+.lobby-scroll { -fx-background-color: transparent; -fx-background: transparent; }
+.lobby-scroll > .viewport { -fx-background-color: transparent; }
+.lobby-start-card, .lobby-guide-card { -fx-pref-width: 0; -fx-min-height: 150px; }
+.lobby-discovery-card { -fx-min-height: 205px; }
+.lobby-navigation { -fx-padding: 4px 0 0 0; }
+.fruit-grid { -fx-padding: 2px 0; }
+.fruit-card {
+    -fx-background-color: rgba(255, 255, 255, .88);
+    -fx-border-color: #6ba878;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-cursor: hand;
+}
+.fruit-card-hover { -fx-background-color: #e5f5df; -fx-border-color: #267253; }
+.fruit-name { -fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #17452f; }
+.fruit-group { -fx-font-size: 12px; -fx-text-fill: #5b6b4e; }
+.mode-selector { -fx-pref-width: 220px; -fx-font-size: 15px; }
+.lobby-surface { -fx-background-color: rgba(255, 252, 240, 0.94); -fx-background-radius: 18px; -fx-border-color: #267253; -fx-border-radius: 18px; }
+.lobby-header { -fx-padding: 2px 4px 6px 4px; }
+.lobby-card { -fx-background-color: rgba(248, 255, 245, 0.96); -fx-border-color: #6ba878; -fx-border-radius: 10px; -fx-background-radius: 10px; -fx-pref-width: 0; -fx-max-width: 10000px; }
+.card-title { -fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #115336; }
+.card-description { -fx-font-size: 15px; -fx-text-fill: #17452f; -fx-wrap-text: true; }
+.primary-button.wide-button { -fx-pref-width: 240px; }
+.fx-game-view { -fx-background-color: #dff4d8; -fx-font-family: "Pixelify Sans", "Consolas", "Courier New", monospace; }
+.game-header { -fx-background-color: rgba(255, 252, 240, .96); -fx-border-color: #267253; -fx-border-width: 0 0 1.5px 0; -fx-padding: 3px 12px 7px 12px; }
+.game-score, .game-timer, .game-opponent-score { -fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #17452f; -fx-padding: 10px 18px; }
+.game-timer { -fx-text-fill: #9a5428; }
+.game-objective, .game-status { -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #17452f; -fx-padding: 3px 8px; }
+.game-status { -fx-text-fill: #5b6b4e; -fx-font-weight: normal; }
+.result-card { -fx-background-color: rgba(255, 252, 240, 0.95); -fx-background-radius: 18px; -fx-border-color: #267253; -fx-border-radius: 18px; }
+.result-title { -fx-font-size: 56px; -fx-font-weight: bold; -fx-text-fill: #115336; }
+.result-score-me, .result-score-opponent, .result-vs { -fx-font-size: 26px; -fx-font-weight: bold; }
+.result-score-me { -fx-text-fill: #26864b; } .result-score-opponent { -fx-text-fill: #d15a44; } .result-vs { -fx-text-fill: #b58a21; }
+.room-player { -fx-font-size: 17px; -fx-font-weight: bold; -fx-text-fill: #17452f; }
+.fx-waiting-room { -fx-font-family: "Pixelify Sans", "Consolas", "Courier New", monospace; }
+.room-design-label { -fx-font-family: "Pixelify Sans", "Consolas", "Courier New", monospace; -fx-font-weight: bold; }
+.room-mode-selector {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+    -fx-background-color: #9d5b2f;
+    -fx-border-color: #4f2d18;
+    -fx-border-width: 2px;
+    -fx-border-radius: 7px;
+    -fx-background-radius: 7px;
+}
+.room-mode-selector .list-cell { -fx-text-fill: white; -fx-font-weight: bold; }
+.combo-box-popup .list-view {
+    -fx-background-color: #fff7df;
+    -fx-border-color: #4f2d18;
+    -fx-border-width: 1px;
+}
+.combo-box-popup .list-view .list-cell {
+    -fx-background-color: #fff7df;
+    -fx-text-fill: #4f2d18;
+    -fx-font-weight: bold;
+    -fx-padding: 8px 10px;
+}
+.combo-box-popup .list-view .list-cell:hover,
+.combo-box-popup .list-view .list-cell:filled:selected {
+    -fx-background-color: #dcefd8;
+    -fx-text-fill: #17452f;
+}
+.online-player-label { -fx-font-size: 14px; -fx-text-fill: #17452f; }
+.result-countdown { -fx-font-size: 14px; -fx-text-fill: #5b6b4e; }
+.fx-data-view { -fx-background-color: #fff7df; -fx-font-family: "Pixelify Sans", "Consolas", "Courier New", monospace; }
+.data-surface { -fx-background-color: rgba(255, 252, 240, .95); -fx-background-radius: 14px; }
+.data-row { -fx-font-size: 18px; -fx-padding: 14px; -fx-background-color: #f0f8ed; -fx-text-fill: #17452f; }
+.data-scroll { -fx-background: #fff7df; -fx-background-color: #fff7df; }
+.data-scroll > .viewport { -fx-background-color: #fff7df; }
+.table-view { -fx-font-size: 14px; -fx-background-color: #f8fff5; }
+.table-view .column-header { -fx-background-color: #dcefd8; }
+.table-view .column-header .label { -fx-text-fill: #17452f; -fx-font-weight: bold; }
+.fx-data-view .label { -fx-text-fill: #17452f; }
+.fx-dialog {
+    -fx-background-color: #fff7df;
+}
+.fx-dialog .header-panel,
+.fx-dialog .content {
+    -fx-background-color: #fff7df;
+}
+.invite-list {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #c8c8c8;
+    -fx-border-width: 1px;
+    -fx-padding: 0;
+}
+.invite-list .list-cell {
+    -fx-background-color: #ffffff;
+    -fx-text-fill: #4f2d18;
+    -fx-padding: 5px 10px;
+}
+.invite-list .list-cell:odd {
+    -fx-background-color: #f7f7f7;
+}
+.invite-list .list-cell:empty {
+    -fx-background-color: #ffffff;
+}
+.primary-button {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+    -fx-pref-width: 150px;
+    -fx-pref-height: 44px;
+    -fx-background-radius: 8px;
+    -fx-cursor: hand;
+}
+.blue-button { -fx-background-color: #1675d1; }
+.blue-button:hover { -fx-background-color: #258be8; }
+.orange-button { -fx-background-color: #d26d0d; }
+.orange-button:hover { -fx-background-color: #ef8516; }

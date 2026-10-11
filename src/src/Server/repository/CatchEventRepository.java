@@ -12,26 +12,41 @@ import java.sql.SQLException;
 public final class CatchEventRepository {
     public ScoreUpdate process(Connection connection, long matchId, long playerId, long fruitInstanceId, int basketId)
             throws SQLException, RoomException {
+        /*
+         * Keep the validation row independent from the optional basket/spawn
+         * joins.  The old query returned no row for every kind of invalid
+         * payload, which made a stale fruit id, a wrong basket id, a wrong
+         * match id and an expired match indistinguishable in the server log.
+         */
         String event = """
-                SELECT m.match_state, gm.mode_code, fs.fruit_id, fs.is_bomb
+                SELECT m.match_state, m.started_at, m.duration_seconds,
+                       gm.mode_code, fs.fruit_instance_id AS spawn_instance_id,
+                       fs.fruit_id, fs.is_bomb,
+                       EXISTS (SELECT 1 FROM match_player mp
+                               WHERE mp.match_id = m.match_id AND mp.player_id = ?) AS player_in_match,
+                       EXISTS (SELECT 1 FROM basket b
+                               WHERE b.basket_id = ? AND b.is_active = TRUE) AS basket_valid,
+                       (m.started_at IS NOT NULL AND CURRENT_TIMESTAMP <
+                        DATE_ADD(m.started_at, INTERVAL m.duration_seconds SECOND)) AS within_time
                 FROM game_match m
                 JOIN game_mode gm ON gm.mode_id = m.mode_id
-                JOIN fruit_spawn fs ON fs.match_id = m.match_id
-                JOIN basket b ON b.basket_id = ? AND b.is_active = TRUE
-                WHERE m.match_id = ? AND fs.fruit_instance_id = ?
-                  AND EXISTS (SELECT 1 FROM match_player mp WHERE mp.match_id=m.match_id AND mp.player_id=?)
-                  AND m.started_at IS NOT NULL
-                  AND CURRENT_TIMESTAMP < DATE_ADD(m.started_at, INTERVAL m.duration_seconds SECOND)
+                LEFT JOIN fruit_spawn fs
+                       ON fs.match_id = m.match_id AND fs.fruit_instance_id = ?
+                WHERE m.match_id = ?
                 FOR UPDATE
                 """;
         try (PreparedStatement statement = connection.prepareStatement(event)) {
-            statement.setInt(1, basketId);
-            statement.setLong(2, matchId);
+            statement.setLong(1, playerId);
+            statement.setInt(2, basketId);
             statement.setLong(3, fruitInstanceId);
-            statement.setLong(4, playerId);
+            statement.setLong(4, matchId);
             try (ResultSet result = statement.executeQuery()) {
-                if (!result.next()) throw new RoomException("Invalid match, player, object instance, or basket");
+                if (!result.next()) throw new RoomException("Match was not found");
+                if (!result.getBoolean("player_in_match")) throw new RoomException("Player is not part of this match");
+                if (!result.getBoolean("basket_valid")) throw new RoomException("Basket is not active");
+                if (result.getObject("spawn_instance_id") == null) throw new RoomException("Fruit instance was not found in this match");
                 if (!"PLAYING".equals(result.getString("match_state"))) throw new RoomException("Match is not playing");
+                if (!result.getBoolean("within_time")) throw new RoomException("Match time has expired");
                 boolean bomb = result.getBoolean("is_bomb");
                 String mode = result.getString("mode_code");
                 boolean correct;

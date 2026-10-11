@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * One persistent TCP connection for a logged-in Swing client.
@@ -23,6 +24,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class TcpGameClient implements AutoCloseable {
     private final List<MessageListener> listeners = new CopyOnWriteArrayList<>();
     private final AtomicBoolean closed = new AtomicBoolean(true);
+    /** Identifies the active socket so an old reader cannot close a new connection. */
+    private final AtomicLong connectionId = new AtomicLong();
     private Socket socket;
     private BufferedReader reader;
     private BufferedWriter writer;
@@ -30,13 +33,20 @@ public final class TcpGameClient implements AutoCloseable {
 
     public synchronized void connect(String host, int port) throws IOException {
         if (!closed.get()) throw new IllegalStateException("TCP client is already connected");
-        socket = new Socket(Objects.requireNonNull(host, "host"), port);
-        socket.setTcpNoDelay(true);
-        socket.setKeepAlive(true);
-        reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
-        writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
+        Socket nextSocket = new Socket(Objects.requireNonNull(host, "host"), port);
+        nextSocket.setTcpNoDelay(true);
+        nextSocket.setKeepAlive(true);
+        BufferedReader nextReader = new BufferedReader(
+                new InputStreamReader(nextSocket.getInputStream(), StandardCharsets.UTF_8));
+        BufferedWriter nextWriter = new BufferedWriter(
+                new OutputStreamWriter(nextSocket.getOutputStream(), StandardCharsets.UTF_8));
+        long currentConnection = connectionId.incrementAndGet();
+        socket = nextSocket;
+        reader = nextReader;
+        writer = nextWriter;
         closed.set(false);
-        readerThread = Thread.ofVirtual().name("fruit-battle-tcp-reader").start(this::readLoop);
+        readerThread = Thread.ofVirtual().name("fruit-battle-tcp-reader")
+                .start(() -> readLoop(currentConnection, nextSocket, nextReader));
     }
 
     public void addListener(MessageListener listener) {
@@ -58,10 +68,12 @@ public final class TcpGameClient implements AutoCloseable {
         return !closed.get() && socket != null && socket.isConnected() && !socket.isClosed();
     }
 
-    private void readLoop() {
+    private void readLoop(long currentConnection, Socket sourceSocket, BufferedReader sourceReader) {
         try {
             String line;
-            while (!closed.get() && (line = reader.readLine()) != null) {
+            while (!closed.get() && connectionId.get() == currentConnection
+                    && (line = sourceReader.readLine()) != null) {
+                if (closed.get() || connectionId.get() != currentConnection) break;
                 try {
                     publish(MessageCodec.decode(line));
                 } catch (ProtocolException exception) {
@@ -69,9 +81,25 @@ public final class TcpGameClient implements AutoCloseable {
                 }
             }
         } catch (IOException exception) {
-            if (!closed.get()) publishError(exception);
+            if (!closed.get() && connectionId.get() == currentConnection) publishError(exception);
         } finally {
-            close();
+            finishConnection(currentConnection, sourceSocket);
+        }
+    }
+
+    private synchronized void finishConnection(long currentConnection, Socket sourceSocket) {
+        if (connectionId.get() != currentConnection) return;
+        closed.set(true);
+        if (socket == sourceSocket) {
+            socket = null;
+            reader = null;
+            writer = null;
+        }
+        if (readerThread == Thread.currentThread()) readerThread = null;
+        try {
+            sourceSocket.close();
+        } catch (IOException ignored) {
+            // The remote side may have already closed the socket.
         }
     }
 
@@ -84,10 +112,20 @@ public final class TcpGameClient implements AutoCloseable {
     }
 
     @Override
-    public synchronized void close() {
-        if (closed.compareAndSet(false, true) && socket != null) {
+    public void close() {
+        Socket currentSocket;
+        synchronized (this) {
+            connectionId.incrementAndGet();
+            closed.set(true);
+            currentSocket = socket;
+            socket = null;
+            reader = null;
+            writer = null;
+            readerThread = null;
+        }
+        if (currentSocket != null) {
             try {
-                socket.close();
+                currentSocket.close();
             } catch (IOException ignored) {
                 // Teardown is best effort.
             }

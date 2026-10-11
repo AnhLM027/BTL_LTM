@@ -102,6 +102,7 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
                 case "INVITE_REJECT" -> rejectInvite(session, message);
                 case "START_MATCH" -> startMatch(session, message);
                 case "MATCH_READY" -> matchReady(session, message);
+                case "MATCH_RESULT_REQUEST" -> matchResultRequest(session, message);
                 case "CATCH_EVENT" -> catchEvent(session, message);
                 default ->
                         session.send(ProtocolMessage.error("UNKNOWN_MESSAGE", "Unsupported message type: " + message.type()));
@@ -114,6 +115,14 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
             session.send(new ProtocolMessage("LOGIN_FAILED", Map.of("reason", exception.getMessage())));
         } catch (RoomException exception) {
             ServerLog.warning("Room or match action rejected: type=" + message.type() + ", player=" + session.playerId() + ", reason=" + exception.getMessage());
+            if ("CATCH_EVENT".equals(message.type())) {
+                java.util.LinkedHashMap<String, String> acknowledgement = new java.util.LinkedHashMap<>();
+                acknowledgement.put("accepted", "false");
+                acknowledgement.put("reason", exception.getMessage());
+                if (message.fields().containsKey("matchId")) acknowledgement.put("matchId", message.fields().get("matchId"));
+                if (message.fields().containsKey("fruitInstanceId")) acknowledgement.put("fruitInstanceId", message.fields().get("fruitInstanceId"));
+                session.send(new ProtocolMessage("CATCH_ACK", acknowledgement));
+            }
             session.send(ProtocolMessage.error("ROOM_ACTION_REJECTED", exception.getMessage()));
         } catch (SQLException exception) {
             ServerLog.error("Database error while handling " + message.type(), exception);
@@ -233,13 +242,19 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
     private void sendRoomSnapshot(ClientSession session) throws IOException, ProtocolException, SQLException {
         long playerId = requirePlayer(session);
         try (var connection = Server.config.DatabaseConfig.openConnection()) {
-            roomRepository.findActiveForPlayer(connection, playerId).ifPresent(room -> {
+            var room = roomRepository.findActiveForPlayer(connection, playerId).orElse(null);
+            if (room != null && room.state() == Server.model.enums.RoomState.FINISHED) {
+                roomRepository.reopenFinished(connection, room.roomId());
+                room = roomRepository.findById(connection, room.roomId(), false).orElse(room);
+            }
+            if (room != null) {
+                MatchRoom snapshot = room;
                 try {
-                    session.send(roomMessage(room));
+                    session.send(roomMessage(snapshot));
                 } catch (IOException ignored) {
                     // Normal disconnect cleanup handles the session.
                 }
-            });
+            }
         }
     }
 
@@ -326,6 +341,8 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
     private void deleteAdminAccount(ClientSession session, ProtocolMessage message) throws IOException, ProtocolException, SQLException {
         requireAdmin(session);
         long accountId = parseLong(message.requiredField("accountId"), "accountId");
+        if (session.playerId() != null && -session.playerId() == accountId)
+            throw new ProtocolException("Không thể xóa tài khoản quản trị đang đăng nhập");
         authService.deleteAccount(accountId);
         session.send(ProtocolMessage.of("ADMIN_ACCOUNT_DELETED"));
     }
@@ -338,7 +355,10 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
 
     private void updateAdminAccount(ClientSession session, ProtocolMessage message) throws IOException, ProtocolException, SQLException, AuthenticationException {
         requireAdmin(session);
-        authService.updateAccount(parseLong(message.requiredField("accountId"), "accountId"), message.requiredField("username"), message.requiredField("role"), message.requiredField("status"), message.fields().get("password"));
+        long accountId = parseLong(message.requiredField("accountId"), "accountId");
+        if (session.playerId() != null && -session.playerId() == accountId)
+            throw new ProtocolException("Không thể sửa vai trò/trạng thái của tài khoản đang đăng nhập");
+        authService.updateAccount(accountId, message.requiredField("username"), message.requiredField("role"), message.requiredField("status"), message.fields().get("password"));
         session.send(ProtocolMessage.of("ADMIN_ACCOUNT_UPDATED"));
     }
 
@@ -501,15 +521,24 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
     }
 
     private ProtocolMessage roomMessage(MatchRoom room) {
-        return new ProtocolMessage("ROOM_UPDATED", Map.of(
-                "roomId", Long.toString(room.roomId()),
-                "hostPlayerId", Long.toString(room.hostPlayerId()),
-                "guestPlayerId", room.guestPlayerId() == null ? "" : Long.toString(room.guestPlayerId()),
-                "modeId", Integer.toString(room.modeId()),
-                "roomState", room.state().name(),
-                "hostReady", Boolean.toString(room.hostReady()),
-                "guestReady", Boolean.toString(room.guestReady())
-        ));
+        java.util.LinkedHashMap<String, String> fields = new java.util.LinkedHashMap<>();
+        fields.put("roomId", Long.toString(room.roomId()));
+        fields.put("hostPlayerId", Long.toString(room.hostPlayerId()));
+        fields.put("guestPlayerId", room.guestPlayerId() == null ? "" : Long.toString(room.guestPlayerId()));
+        fields.put("modeId", Integer.toString(room.modeId()));
+        fields.put("modeCode", roomModeCode(room));
+        fields.put("roomState", room.state().name());
+        fields.put("hostReady", Boolean.toString(room.hostReady()));
+        fields.put("guestReady", Boolean.toString(room.guestReady()));
+        return new ProtocolMessage("ROOM_UPDATED", fields);
+    }
+
+    private String roomModeCode(MatchRoom room) {
+        try {
+            return gameModeRepository.findById(room.modeId()).map(mode -> mode.modeCode().name()).orElse("CLASSIC");
+        } catch (SQLException ignored) {
+            return "CLASSIC";
+        }
     }
 
     private long requireAuthenticated(ClientSession session) throws ProtocolException {
@@ -602,6 +631,7 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
                     });
                 }
             }
+            broadcastRoomSnapshot(prep.match().roomId());
             return;
         }
         session.send(new ProtocolMessage("MATCH_REJOIN", Map.of("matchId", Long.toString(prep.match().matchId()), "remainingMs", Long.toString(remaining))));
@@ -659,8 +689,56 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
         }
     }
 
+    /**
+     * A timeout fallback from the client.  The client never supplies a score;
+     * the server verifies ownership and the persisted start time before it
+     * performs the same idempotent finalization used by the scheduler.
+     */
+    private void matchResultRequest(ClientSession session, ProtocolMessage message)
+            throws IOException, ProtocolException, SQLException, RoomException {
+        long playerId = requirePlayer(session);
+        long matchId = parseLong(message.requiredField("matchId"), "matchId");
+        if (!matchService.participants(matchId).contains(playerId))
+            throw new RoomException("Player does not belong to this match");
+
+        var match = matchService.findMatch(matchId).orElseThrow(() -> new RoomException("Match was not found"));
+        if (match.state() == Server.model.enums.MatchState.FINISHED) {
+            sendExistingResult(session, matchId, playerId);
+            return;
+        }
+        if (match.startedAt() == null ||
+                System.currentTimeMillis() - match.startedAt().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        < match.durationSeconds() * 1000L) {
+            session.send(ProtocolMessage.error("MATCH_NOT_FINISHED", "Trận đấu chưa hết thời gian"));
+            return;
+        }
+        finalizeAndBroadcast(matchId);
+    }
+
+    private void sendExistingResult(ClientSession session, long matchId, long playerId)
+            throws SQLException, IOException, RoomException {
+        var players = matchService.scores(matchId);
+        var player = players.stream().filter(candidate -> candidate.playerId() == playerId).findFirst()
+                .orElseThrow(() -> new RoomException("Match player was not found"));
+        sendMatchResult(session, new MatchFinalization(matchId, players), player);
+    }
+
     private void catchEvent(ClientSession session, ProtocolMessage message) throws IOException, ProtocolException, SQLException, RoomException {
-        ScoreUpdate score = matchService.catchFruit(requirePlayer(session), parseLong(message.requiredField("matchId"), "matchId"), parseLong(message.requiredField("fruitInstanceId"), "fruitInstanceId"), Integer.parseInt(message.requiredField("basketId")));
+        long playerId = requirePlayer(session);
+        long matchId = parseLong(message.requiredField("matchId"), "matchId");
+        long fruitInstanceId = parseLong(message.requiredField("fruitInstanceId"), "fruitInstanceId");
+        int basketId = parseInt(message.requiredField("basketId"), "basketId");
+        ServerLog.info("Catch event payload: player=" + playerId + ", match=" + matchId
+                + ", fruitInstance=" + fruitInstanceId + ", basket=" + basketId);
+        ScoreUpdate score;
+        try {
+            score = matchService.catchFruit(playerId, matchId, fruitInstanceId, basketId);
+        } catch (RoomException exception) {
+            ServerLog.warning("Catch event rejected: player=" + playerId + ", match=" + matchId
+                    + ", fruitInstance=" + fruitInstanceId + ", basket=" + basketId
+                    + ", reason=" + exception.getMessage());
+            throw exception;
+        }
         ConcurrentHashMap<Long, Integer> matchCombo = comboState.computeIfAbsent(score.matchId(), ignored -> new ConcurrentHashMap<>());
         int combo = score.wasCorrect() ? matchCombo.getOrDefault(score.playerId(), 0) + 1 : 0;
         int bonus = combo >= 5 ? 10 : 0;
@@ -669,11 +747,11 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
         if (bonus > 0) score = matchService.applyComboBonus(score, bonus, combo);
         else score = new ScoreUpdate(score.matchId(), score.playerId(), score.score(), score.correctCount(), score.wrongCount(), score.wasCorrect(), combo, 0);
         ServerLog.info("Catch accepted: match=" + score.matchId() + ", player=" + score.playerId()
-                + ", fruitInstance=" + message.requiredField("fruitInstanceId") + ", score=" + score.score());
-        session.send(new ProtocolMessage("CATCH_ACK", Map.of("matchId", Long.toString(score.matchId()), "fruitInstanceId", message.requiredField("fruitInstanceId"), "accepted", "true")));
+                + ", fruitInstance=" + fruitInstanceId + ", score=" + score.score());
+        session.send(new ProtocolMessage("CATCH_ACK", Map.of("matchId", Long.toString(score.matchId()), "fruitInstanceId", Long.toString(fruitInstanceId), "accepted", "true")));
         ProtocolMessage update = scoreMessage(score);
-        for (long playerId : matchService.participants(score.matchId()))
-            sessions.findPlayer(playerId).ifPresent(target -> {
+        for (long participantId : matchService.participants(score.matchId()))
+            sessions.findPlayer(participantId).ifPresent(target -> {
                 try {
                     target.send(update);
                 } catch (IOException ignored) {
@@ -714,40 +792,63 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
     private void scheduleFinalization(long matchId, int durationSeconds) {
         ServerLog.info("Match finalization scheduled: match=" + matchId + ", in=" + durationSeconds + "s");
         matchScheduler.schedule(() -> {
+            ServerLog.info("Match finalization task fired: match=" + matchId);
             try {
-                MatchFinalization finalization = matchService.finalizeMatch(matchId);
-                ServerLog.info("Match finalized: match=" + finalization.matchId());
-                for (Server.model.domain.MatchPlayer player : finalization.players()) {
-                    Server.model.domain.MatchPlayer opponent = finalization.players().stream()
-                            .filter(candidate -> candidate.playerId() != player.playerId()).findFirst().orElseThrow();
-                    sessions.findPlayer(player.playerId()).ifPresent(target -> {
-                        try {
-                            target.send(new ProtocolMessage("MATCH_RESULT", Map.of(
-                                    "matchId", Long.toString(finalization.matchId()),
-                                    "playerId", Long.toString(player.playerId()),
-                                    "score", Integer.toString(player.finalScore()),
-                                    "correctCount", Integer.toString(player.correctCount()),
-                                    "wrongCount", Integer.toString(player.wrongCount()),
-                                    "result", player.result().name(),
-                                    "opponentPlayerId", Long.toString(opponent.playerId()),
-                                    "opponentScore", Integer.toString(opponent.finalScore()),
-                                    "opponentResult", opponent.result().name()
-                            )));
-                        } catch (IOException ignored) {
-                            // A reconnect can retrieve persisted history after the match.
-                        }
-                    });
-                }
-                broadcastOnlinePlayers();
-                comboState.remove(matchId);
-            } catch (SQLException | RoomException exception) {
-                ServerLog.error("Could not finalize match " + matchId, exception);
+                finalizeAndBroadcast(matchId);
+            } catch (Throwable error) {
+                // ScheduledExecutorService suppresses task failures. Keep the
+                // scheduler alive and make fatal runtime/linkage errors visible.
+                ServerLog.error("Unexpected finalization failure for match " + matchId, error);
             }
-        }, durationSeconds, TimeUnit.SECONDS);
+        }, Math.max(0, durationSeconds), TimeUnit.SECONDS);
+    }
+
+    private void finalizeAndBroadcast(long matchId) {
+        try {
+            MatchFinalization finalization = matchService.finalizeMatch(matchId);
+            ServerLog.info("Match finalized: match=" + finalization.matchId());
+            for (Server.model.domain.MatchPlayer player : finalization.players()) {
+                sessions.findPlayer(player.playerId()).ifPresent(target -> {
+                    try {
+                        sendMatchResult(target, finalization, player);
+                    } catch (IOException | RuntimeException ignored) {
+                        // A reconnect can retrieve the persisted result later.
+                    }
+                });
+            }
+            // Keep both clients on the authoritative reusable room snapshot.
+            // The match transaction has already reset the room to FULL and
+            // cleared readiness, so the host can start the next match.
+            matchService.findMatch(matchId).ifPresent(match -> broadcastRoomSnapshot(match.roomId()));
+            broadcastOnlinePlayers();
+            comboState.remove(matchId);
+        } catch (SQLException | RoomException exception) {
+            ServerLog.error("Could not finalize match " + matchId, exception);
+        } catch (RuntimeException exception) {
+            ServerLog.error("Unexpected runtime error while finalizing match " + matchId, exception);
+        }
+    }
+
+    private void broadcastRoomSnapshot(long roomId) {
+        try (var connection = Server.config.DatabaseConfig.openConnection()) {
+            roomRepository.findById(connection, roomId, false).ifPresent(room -> {
+                try {
+                    sendRoomUpdated(room);
+                } catch (IOException ignored) {
+                    // A disconnected client can retrieve the snapshot after login.
+                }
+            });
+        } catch (SQLException exception) {
+            ServerLog.warning("Could not broadcast reset room snapshot: room=" + roomId);
+        }
     }
 
     public void recoverMatches() {
         try {
+            for (var pending : matchService.pendingMatches()) {
+                if (matchService.cancelPendingMatch(pending.matchId()))
+                    ServerLog.info("Cancelled stale pending match on server startup: match=" + pending.matchId());
+            }
             for (var match : matchService.recoverableMatches()) {
                 long remaining = match.startedAt() == null ? 0 : Math.max(0, match.durationSeconds() * 1000L - (System.currentTimeMillis() - match.startedAt().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()));
                 if (remaining == 0) scheduleFinalization(match.matchId(), 0);
@@ -779,9 +880,30 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
             for (var match : matchService.recoverableMatches())
                 if (matchService.participants(match.matchId()).contains(playerId))
                     disconnectGrace.put(playerId, matchScheduler.schedule(() -> scheduleFinalization(match.matchId(), 0), 30, TimeUnit.SECONDS));
+            for (var match : matchService.pendingMatches())
+                if (matchService.participants(match.matchId()).contains(playerId))
+                    disconnectGrace.put(playerId, matchScheduler.schedule(() -> cancelPendingAfterDisconnect(match.matchId()), 30, TimeUnit.SECONDS));
             ServerLog.info("Reconnect grace scheduled: player=" + playerId + ", seconds=30");
         } catch (SQLException ignored) {
             ServerLog.warning("Could not schedule reconnect grace for player=" + playerId);
+        }
+    }
+
+    private void cancelPendingAfterDisconnect(long matchId) {
+        try {
+            if (!matchService.cancelPendingMatch(matchId)) return;
+            ServerLog.info("Pending match cancelled after reconnect grace: match=" + matchId);
+            for (long participant : matchService.participants(matchId))
+                sessions.findPlayer(participant).ifPresent(target -> {
+                    try {
+                        target.send(new ProtocolMessage("MATCH_CANCELLED", Map.of(
+                                "matchId", Long.toString(matchId),
+                                "reason", "PLAYER_DISCONNECTED")));
+                    } catch (IOException ignored) {
+                    }
+                });
+        } catch (SQLException exception) {
+            ServerLog.error("Could not cancel pending match " + matchId, exception);
         }
     }
 

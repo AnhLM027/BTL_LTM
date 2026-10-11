@@ -3,6 +3,7 @@ package Client.view;
 import Client.network.TcpGameClient;
 import Client.session.GameClientSession;
 import Client.ui.AssetLoader;
+import Client.ui.AssetPaths;
 import Client.ui.ScaledBackgroundPanel;
 import Server.network.ProtocolMessage;
 import java.awt.*;
@@ -14,7 +15,7 @@ import javax.swing.table.DefaultTableModel;
 /**
  * Authoritative TCP lobby: online list, rooms, invitations and match launch.
  */
-public final class LobbyScreen extends JFrame implements TcpGameClient.MessageListener {
+public final class LobbyScreen extends JPanel implements TcpGameClient.MessageListener, ClientScreen {
     private final TcpGameClient client = GameClientSession.instance().client();
     private final long playerId;
     private final DefaultTableModel players = new DefaultTableModel(
@@ -43,17 +44,13 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
     public LobbyScreen(String ignoredPlayerId, String ignoredName) {
         playerId = GameClientSession.instance().identity().playerId();
         client.addListener(this);
-        setTitle("Fruit Battle Online — Lobby");
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setSize(1080, 760);
-        setMinimumSize(new Dimension(900, 650));
-        setLocationRelativeTo(null);
+        setLayout(new BorderLayout());
 
         // ── Background ──────────────────────────────────────────────────────
         ImageIcon bg = AssetLoader.icon("backgrounds/lobby-orchard-background.png");
         ScaledBackgroundPanel bgPanel = new ScaledBackgroundPanel(bg);
         bgPanel.setLayout(new BorderLayout(0, 0));
-        setContentPane(bgPanel);
+        add(bgPanel, BorderLayout.CENTER);
 
         // ── Header (logo + room status + connection icon) ────────────────────
         JPanel header = new JPanel(new BorderLayout(10, 0));
@@ -162,14 +159,13 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
         start.addActionListener(e ->
                 send(new ProtocolMessage("START_MATCH", Map.of("roomId", Long.toString(roomId)))));
 
-        profile.addActionListener(e -> new ProfileScreen(Long.toString(playerId)));
-        history.addActionListener(e -> new HistoryScreen(Long.toString(playerId)));
-        rank.addActionListener(e -> new RankScreen());
+        profile.addActionListener(e -> MainClientFrame.instance().showProfile());
+        history.addActionListener(e -> MainClientFrame.instance().showHistory());
+        rank.addActionListener(e -> MainClientFrame.instance().showRanking());
 
         logout.addActionListener(e -> {
             try { GameClientSession.instance().logout(); } catch (IOException ignored) {}
-            dispose();
-            new LoginScreen();
+            MainClientFrame.instance().showLogin();
         });
 
         send(ProtocolMessage.of("GET_ONLINE_PLAYERS"));
@@ -177,7 +173,6 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
         send(ProtocolMessage.of("GET_FRUIT_CATALOG"));
         send(ProtocolMessage.of("GET_GAME_MODES"));
         send(ProtocolMessage.of("GET_ROOM_SNAPSHOT"));
-        setVisible(true);
     }
 
     private JPanel buildDashboard() {
@@ -334,10 +329,7 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
     }
 
     private String normalizeAsset(String path) {
-        if (path == null || path.isBlank()) return "";
-        String normalized = path.replace('\\', '/');
-        int marker = normalized.indexOf("Client/assets/");
-        return marker >= 0 ? normalized.substring(marker + "Client/assets/".length()) : normalized;
+        return AssetPaths.normalize(path);
     }
 
     private void refreshDiscovery() {
@@ -470,7 +462,7 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
     }
 
     private void showAllFruits() {
-        JDialog dialog = new JDialog(this, "Tất cả hoa quả", true);
+        JDialog dialog = new JDialog(MainClientFrame.instance(), "Tất cả hoa quả", true);
         JPanel root = new JPanel(new BorderLayout(10, 10));
         root.setBackground(new Color(255, 252, 239));
         root.setBorder(BorderFactory.createEmptyBorder(14, 14, 12, 14));
@@ -539,12 +531,12 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
 
         dialog.setContentPane(root);
         dialog.setSize(760, 600);
-        dialog.setLocationRelativeTo(this);
+        dialog.setLocationRelativeTo(MainClientFrame.instance());
         dialog.setVisible(true);
     }
 
     private void showStyledDialog(String title, JComponent content, int width, int height) {
-        JDialog dialog = new JDialog(this, title, true);
+        JDialog dialog = new JDialog(MainClientFrame.instance(), title, true);
         JPanel root = new JPanel(new BorderLayout(12, 12));
         root.setBackground(new Color(255, 252, 239));
         root.setBorder(BorderFactory.createEmptyBorder(18, 18, 14, 18));
@@ -557,7 +549,7 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
         root.add(footer, BorderLayout.SOUTH);
         dialog.setContentPane(root);
         dialog.setSize(width, height);
-        dialog.setLocationRelativeTo(this);
+        dialog.setLocationRelativeTo(MainClientFrame.instance());
         dialog.setVisible(true);
     }
 
@@ -694,10 +686,7 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
             }
             case "INVITE_NOTIFICATION" -> showInvite(m);
             case "MATCH_PREPARE" -> {
-                RunGame game = new RunGame(client, playerId);
-                game.onMessage(m);
-                game.setVisible(true);
-                dispose();
+                MainClientFrame.instance().showGame(client, playerId, m);
             }
             case "ERROR" -> notice(m.fields().getOrDefault("message", "Yêu cầu bị từ chối"));
             default -> {}
@@ -713,9 +702,7 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
     }
 
     private void openWaitingRoom(ProtocolMessage roomUpdate) {
-        WaitingRoomScreen waitingRoom = new WaitingRoomScreen(playerId, roomUpdate);
-        waitingRoom.setVisible(true);
-        dispose();
+        MainClientFrame.instance().showWaitingRoom(playerId, roomUpdate);
     }
 
     private void notice(String text) {
@@ -723,16 +710,15 @@ public final class LobbyScreen extends JFrame implements TcpGameClient.MessageLi
     }
 
     @Override
-    public void dispose() {
+    public void onHide() {
         client.removeListener(this);
-        super.dispose();
     }
 
     // ── UI helpers ────────────────────────────────────────────────────────────
 
     /** Updates the mode icon label whenever the combobox selection changes. */
     private void updateModeImage(String modeCode) {
-        String asset = "ORDER".equals(modeCode) ? "modes/mode-nutrition.png" : "modes/mode-fruit-group.png";
+        String asset = "ORDER".equals(modeCode) ? "modes/mode-order.png" : "modes/mode-classic.png";
         ImageIcon icon = AssetLoader.icon(asset);
         if (icon != null) {
             modeImgLabel.setIcon(AssetLoader.scaleToFit(icon, 26, 26));
