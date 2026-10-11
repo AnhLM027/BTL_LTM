@@ -3,12 +3,9 @@ package Client.session;
 import Client.Constants;
 import Client.network.TcpGameClient;
 import Server.network.ProtocolMessage;
-import Client.view.MainClientFrame;
 import Client.fx.FxClientMain;
 import Client.fx.FxScreenNavigator;
 import javafx.application.Platform;
-
-import javax.swing.SwingUtilities;
 
 import java.io.IOException;
 import java.util.Map;
@@ -118,67 +115,35 @@ public final class GameClientSession implements TcpGameClient.MessageListener, A
                 }
             }
             if (!openNow) return;
-            Identity currentIdentity = identity;
             Runnable open = () -> {
                 List<ProtocolMessage> snapshot;
                 synchronized (rejoinLock) {
                     snapshot = List.copyOf(rejoinSnapshot);
                     rejoinOpenScheduled = false;
                 }
-                if (FxClientMain.isActive()) {
-                    FxScreenNavigator navigator = FxScreenNavigator.current();
-                    if (navigator != null) {
-                        navigator.showGame(snapshot.get(1));
-                        if (navigator.currentGame() != null) {
-                            for (ProtocolMessage item : snapshot.subList(2, snapshot.size()))
-                                navigator.currentGame().onMessage(item);
-                        }
-                        synchronized (rejoinLock) {
-                            List<ProtocolMessage> late = new ArrayList<>(rejoinSnapshot.subList(snapshot.size(), rejoinSnapshot.size()));
-                            rejoiningMatch = false;
-                            for (ProtocolMessage item : late) navigator.currentGame().onMessage(item);
-                        }
-                    }
-                } else {
-                    MainClientFrame.instance().showGame(client, currentIdentity.playerId(), snapshot.get(1));
-                    if (MainClientFrame.instance().currentGame() != null) {
-                        for (ProtocolMessage item : snapshot.subList(2, snapshot.size()))
-                            MainClientFrame.instance().currentGame().onMessage(item);
-                        synchronized (rejoinLock) {
-                            List<ProtocolMessage> late = new ArrayList<>(rejoinSnapshot.subList(snapshot.size(), rejoinSnapshot.size()));
-                            rejoiningMatch = false;
-                            for (ProtocolMessage item : late) MainClientFrame.instance().currentGame().onMessage(item);
-                        }
+                if (!FxClientMain.isActive()) return;
+                FxScreenNavigator navigator = FxScreenNavigator.current();
+                if (navigator == null || snapshot.size() < 2) return;
+                navigator.showGame(snapshot.get(1));
+                if (navigator.currentGame() != null) {
+                    for (ProtocolMessage item : snapshot.subList(2, snapshot.size()))
+                        navigator.currentGame().onMessage(item);
+                    synchronized (rejoinLock) {
+                        List<ProtocolMessage> late = new ArrayList<>(rejoinSnapshot.subList(snapshot.size(), rejoinSnapshot.size()));
+                        rejoiningMatch = false;
+                        for (ProtocolMessage item : late) navigator.currentGame().onMessage(item);
                     }
                 }
             };
-            if (FxClientMain.isActive()) {
-                Platform.runLater(open);
-            } else {
-                runOnEventThreadAndWait(open);
-            }
+            Platform.runLater(open);
             return;
         }
         if (message.type().equals("MATCH_RESULT") && rejoiningMatch && identity != null) {
             rejoiningMatch = false;
-            if (FxClientMain.isActive()) {
-                Platform.runLater(() -> {
-                    FxScreenNavigator navigator = FxScreenNavigator.current();
-                    if (navigator != null) navigator.showResult(message);
-                });
-            } else {
-                runOnEventThreadAndWait(() -> {
-                    try {
-                        MainClientFrame.instance().showEndGame(
-                                message.requiredField("result"),
-                                message.requiredField("score"),
-                                message.requiredField("opponentScore"));
-                    } catch (Exception ignored) {
-                        // The regular game listener will display the result if
-                        // this fallback arrives after the screen is installed.
-                    }
-                });
-            }
+            if (FxClientMain.isActive()) Platform.runLater(() -> {
+                FxScreenNavigator navigator = FxScreenNavigator.current();
+                if (navigator != null) navigator.showResult(message);
+            });
             return;
         }
         CompletableFuture<Identity> future = pendingLogin;
@@ -209,18 +174,6 @@ public final class GameClientSession implements TcpGameClient.MessageListener, A
     public synchronized void close() {
         identity = null;
         client.close();
-    }
-
-    private void runOnEventThreadAndWait(Runnable action) {
-        if (SwingUtilities.isEventDispatchThread()) {
-            action.run();
-            return;
-        }
-        try {
-            SwingUtilities.invokeAndWait(action);
-        } catch (Exception exception) {
-            onConnectionError(new IOException("Cannot restore the match UI", exception));
-        }
     }
 
     public record Identity(long playerId, String displayName, String role) {

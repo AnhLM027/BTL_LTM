@@ -1,9 +1,9 @@
 package Client;
 
-import Client.view.MainClientFrame;
+import Client.fx.FxClientMain;
 
 public class ClientMain {
     public static void main(String[] args) {
-        MainClientFrame.launch();
+        FxClientMain.main(args);
     }
 }

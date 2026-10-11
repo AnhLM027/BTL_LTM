@@ -121,7 +121,7 @@ public final class FxLobbyView extends StackPane implements TcpGameClient.Messag
 
     private VBox buildStartCard() {
         Label heading = sectionTitle("BẮT ĐẦU CHƠI");
-        Label subtitle = new Label("Thi đấu 1 vs 1 trong 30 giây");
+        Label subtitle = new Label("Thi đấu 1 vs 1 trong 60 giây");
         subtitle.getStyleClass().add("card-description");
         Label rules = new Label("Hứng đúng: +10    Hứng ngoài đơn: -5");
         rules.getStyleClass().add("card-description");
@@ -269,7 +269,7 @@ public final class FxLobbyView extends StackPane implements TcpGameClient.Messag
         alert.setHeaderText("CÁCH CHƠI");
         String classic = modeDescriptions.getOrDefault("CLASSIC", "Hứng hoa quả để nhận điểm và né bom.");
         String order = modeDescriptions.getOrDefault("ORDER", "Hứng đúng ba loại quả trong đơn hàng.");
-        alert.setContentText("Thi đấu 1 vs 1 trong 30 giây. Dùng phím ← / → để di chuyển giỏ.\n\n"
+        alert.setContentText("Thi đấu 1 vs 1 trong 60 giây. Dùng phím ← / → để di chuyển giỏ.\n\n"
                 + "CHẾ ĐỘ CLASSIC\n" + classic + "\n\nCHẾ ĐỘ ORDER\n" + order);
         alert.showAndWait();
     }

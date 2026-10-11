@@ -12,6 +12,7 @@ import Server.repository.RoomRepository;
 import Server.repository.HistoryRepository;
 import Server.repository.FruitRepository;
 import Server.repository.GameModeRepository;
+import Server.repository.MatchRepository;
 import Server.service.AuthService;
 import Server.service.AuthenticationException;
 import Server.service.RoomException;
@@ -582,6 +583,18 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
         catch (NumberFormatException exception) { throw new ProtocolException("Invalid " + fieldName); }
     }
 
+    private void addMatchPlayerNames(Map<String, String> fields, MatchPreparation preparation)
+            throws SQLException {
+        Player host = playerRepository.findById(preparation.hostPlayerId()).orElse(null);
+        Player guest = playerRepository.findById(preparation.guestPlayerId()).orElse(null);
+        fields.put("hostPlayerId", Long.toString(preparation.hostPlayerId()));
+        fields.put("guestPlayerId", Long.toString(preparation.guestPlayerId()));
+        fields.put("hostPlayerName", host == null
+                ? "Người chơi #" + preparation.hostPlayerId() : host.displayName());
+        fields.put("guestPlayerName", guest == null
+                ? "Người chơi #" + preparation.guestPlayerId() : guest.displayName());
+    }
+
     private void startMatch(ClientSession session, ProtocolMessage message) throws IOException, ProtocolException, SQLException, RoomException {
         MatchPreparation prep = matchService.prepare(requirePlayer(session), parseLong(message.requiredField("roomId"), "roomId"));
         ServerLog.info("Match prepared: match=" + prep.match().matchId() + ", room=" + prep.match().roomId()
@@ -591,7 +604,10 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
         preparationFields.put("modeId", Integer.toString(prep.match().modeId()));
         preparationFields.put("modeCode", gameModeRepository.findById(prep.match().modeId()).orElseThrow().modeCode().name());
         preparationFields.put("seed", Long.toString(prep.match().seed()));
-        preparationFields.put("durationSeconds", "30");
+        // Use the duration persisted with this match. This keeps the client
+        // and the finalization scheduler on the same authoritative value.
+        preparationFields.put("durationSeconds", Integer.toString(prep.match().durationSeconds()));
+        addMatchPlayerNames(preparationFields, prep);
         for (int index = 0; index < prep.targetFruitIds().size(); index++)
             preparationFields.put("targetFruitId_" + (index + 1), Integer.toString(prep.targetFruitIds().get(index)));
         ProtocolMessage header = new ProtocolMessage("MATCH_PREPARE", preparationFields);
@@ -641,6 +657,7 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
         preparationFields.put("modeCode", gameModeRepository.findById(prep.match().modeId()).orElseThrow().modeCode().name());
         preparationFields.put("seed", Long.toString(prep.match().seed()));
         preparationFields.put("durationSeconds", Integer.toString(prep.match().durationSeconds()));
+        addMatchPlayerNames(preparationFields, prep);
         for (int index = 0; index < prep.targetFruitIds().size(); index++)
             preparationFields.put("targetFruitId_" + (index + 1), Integer.toString(prep.targetFruitIds().get(index)));
         session.send(new ProtocolMessage("MATCH_PREPARE", preparationFields));
@@ -677,7 +694,7 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
         session.send(ProtocolMessage.of("MATCH_READY_ACK"));
         if (result.started()) {
             ServerLog.info("Match started: match=" + result.match().matchId() + ", duration=" + result.match().durationSeconds() + "s");
-            ProtocolMessage start = new ProtocolMessage("MATCH_START", Map.of("matchId", Long.toString(result.match().matchId()), "startedAt", result.match().startedAt().toString(), "durationSeconds", "30"));
+            ProtocolMessage start = new ProtocolMessage("MATCH_START", Map.of("matchId", Long.toString(result.match().matchId()), "startedAt", result.match().startedAt().toString(), "durationSeconds", Integer.toString(result.match().durationSeconds())));
             for (long playerId : List.of(result.hostPlayerId(), result.guestPlayerId()))
                 sessions.findPlayer(playerId).ifPresent(target -> {
                     try {
@@ -831,13 +848,19 @@ public final class GameServerEventHandler implements ServerEventHandler, AutoClo
 
     private void broadcastRoomSnapshot(long roomId) {
         try (var connection = Server.config.DatabaseConfig.openConnection()) {
-            roomRepository.findById(connection, roomId, false).ifPresent(room -> {
+            var room = roomRepository.findById(connection, roomId, false).orElse(null);
+            if (room != null && room.state() == Server.model.enums.RoomState.FINISHED) {
+                roomRepository.reopenFinished(connection, roomId);
+                room = roomRepository.findById(connection, roomId, false).orElse(room);
+            }
+            if (room != null) {
+                MatchRoom snapshot = room;
                 try {
-                    sendRoomUpdated(room);
+                    sendRoomUpdated(snapshot);
                 } catch (IOException ignored) {
                     // A disconnected client can retrieve the snapshot after login.
                 }
-            });
+            }
         } catch (SQLException exception) {
             ServerLog.warning("Could not broadcast reset room snapshot: room=" + roomId);
         }

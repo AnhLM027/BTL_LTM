@@ -86,6 +86,10 @@ public final class FxScreenNavigator {
         fields.put("hostReady", "false");
         fields.put("guestReady", "false");
         fields.put("matchId", "");
+        // Do not let a cached room snapshot enable START_MATCH before the
+        // server confirms the room is still full and reusable. The waiting
+        // room sends GET_ROOM_SNAPSHOT immediately after it is shown.
+        fields.put("snapshotPending", "true");
         showWaitingRoom(new ProtocolMessage("ROOM_UPDATED", fields));
     }
 

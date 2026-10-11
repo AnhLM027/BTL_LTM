@@ -17,18 +17,18 @@
 | `nutrition/` | Icon/asset dinh dưỡng |
 | `results/` | Hình kết quả trận |
 | `ui/waiting-room/` | Panel, avatar, nút và icon của phòng chờ |
+| `ui/game-play/` | Nền 3 giai đoạn, HUD panel, avatar và phím điều khiển gameplay |
 | `fonts/` | Font đóng gói cùng client |
 | `design/` | Tài liệu kích thước, layout và preview; không dùng trực tiếp khi chạy |
 | `legacy/` | Asset cũ giữ lại để tham chiếu, không dùng trong UI mới |
 
 ## Quy ước đường dẫn
 
-- Source mới dùng `AssetPaths` và `AssetLoader`/`FxAssets` để tải asset.
+- Source mới dùng `AssetPaths` và `FxAssets` để tải asset.
 - Có thể ghi trong DB dạng `Client/assets/fruits/apple.png`; loader sẽ tự bỏ
   tiền tố `Client/assets/`.
-- Các đường dẫn cũ của phòng chờ, `background/`, `bomb/` và tên mode cũ vẫn
-  được normalize để hỗ trợ dữ liệu đã tồn tại, nhưng không tạo thêm code mới
-  dùng các alias đó.
+- Các tiền tố cũ `background/` và `bomb/` vẫn được normalize để hỗ trợ dữ
+  liệu đã tồn tại, nhưng không tạo thêm code mới dùng các alias đó.
 - Font UI chính là `fonts/FVF.ttf`; font pixel là
   `fonts/PixelifySans[wght].ttf`.
 

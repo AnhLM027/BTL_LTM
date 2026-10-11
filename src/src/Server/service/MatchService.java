@@ -16,6 +16,7 @@ import Server.repository.FruitRepository;
 import Server.repository.GameModeRepository;
 import Server.repository.MatchRepository;
 import Server.repository.RoomRepository;
+import Server.util.ServerLog;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -156,6 +157,11 @@ public final class MatchService {
                     room = rooms.findById(connection, roomId, true).orElseThrow();
                 }
                 if (room.hostPlayerId() != hostPlayerId || room.state() != RoomState.FULL || !room.hasGuest()) {
+                    ServerLog.warning("Start match rejected: room=" + roomId
+                            + ", requestedHost=" + hostPlayerId
+                            + ", actualHost=" + room.hostPlayerId()
+                            + ", guest=" + (room.guestPlayerId() == null ? "none" : room.guestPlayerId())
+                            + ", state=" + room.state());
                     throw new RoomException("Only the full room host can start a match");
                 }
                 GameModeCode mode = modes.findById(room.modeId())
@@ -267,14 +273,15 @@ public final class MatchService {
         List<FruitSpawn> spawns = new ArrayList<>();
         int spawnOrder = 0;
 
-        // A short empty interval follows every phase, so players can see the
-        // speed-up notice only after the previous objects have landed.
+        // Phases overlap slightly at their boundaries to keep the 60-second
+        // round active; the client announces the speed-up after prior objects
+        // have landed.
         spawnOrder = appendClassicPhase(spawns, catalog, random, spawnOrder,
-                6, 1, 0, 800, 4_000);        // Last object ends at 8.8s.
+                10, 1, 0, 1_800, 4_000);     // Last object ends at 22s.
         spawnOrder = appendClassicPhase(spawns, catalog, random, spawnOrder,
-                4, 2, 11_000, 1_000, 4_000); // Last object ends at 20.0s.
+                12, 2, 20_000, 1_400, 3_200); // Last object ends at 41.4s.
         appendClassicPhase(spawns, catalog, random, spawnOrder,
-                6, 1, 22_200, 700, 2_500);   // Last object ends at 28.9s.
+                14, 3, 40_000, 1_000, 2_500); // Last object ends at 58.5s.
         return spawns;
     }
 
@@ -284,7 +291,19 @@ public final class MatchService {
         List<Boolean> objects = new ArrayList<>();
         for (int index = 0; index < fruitCount; index++) objects.add(false);
         for (int index = 0; index < bombCount; index++) objects.add(true);
-        java.util.Collections.shuffle(objects, random);
+        // Shuffle each phase, but reject layouts with consecutive bombs.
+        // The configured phase sizes always have enough fruit slots for this.
+        for (int attempt = 0; attempt < 1000; attempt++) {
+            java.util.Collections.shuffle(objects, random);
+            boolean adjacentBombs = false;
+            for (int index = 1; index < objects.size(); index++) {
+                if (objects.get(index) && objects.get(index - 1)) {
+                    adjacentBombs = true;
+                    break;
+                }
+            }
+            if (!adjacentBombs) break;
+        }
         for (int index = 0; index < objects.size(); index++) {
             boolean bomb = objects.get(index);
             Fruit fruit = bomb ? null : catalog.get(random.nextInt(catalog.size()));
@@ -297,21 +316,20 @@ public final class MatchService {
 
     private List<FruitSpawn> orderSpawns(List<Fruit> catalog, List<Integer> targets, Random random) {
         List<Integer> source = new ArrayList<>();
-        for (int i = 0; i < 12; i++) source.add(targets.get(random.nextInt(targets.size())));
+        for (int i = 0; i < 18; i++) source.add(targets.get(random.nextInt(targets.size())));
         List<Integer> nonTargets = catalog.stream().map(Fruit::fruitId).filter(id -> !targets.contains(id)).toList();
-        for (int i = 0; i < 8; i++) source.add(nonTargets.isEmpty()
+        for (int i = 0; i < 12; i++) source.add(nonTargets.isEmpty()
                 ? targets.get(random.nextInt(targets.size())) : nonTargets.get(random.nextInt(nonTargets.size())));
         java.util.Collections.shuffle(source, random);
         List<FruitSpawn> spawns = new ArrayList<>();
-        for (int index = 0; index < 20; index++) {
-            long offset = index * 1_400L;
+        for (int index = 0; index < 30; index++) {
+            // Keep the thirty ORDER objects distributed across the full
+            // sixty-second match.
+            long offset = index * 1_900L;
             spawns.add(new FruitSpawn(0, 0, source.get(index), false, index, offset,
-                    50 + random.nextInt(701), fallDuration(offset)));
+                    50 + random.nextInt(701), 3_500));
         }
         return spawns;
     }
 
-    private int fallDuration(long spawnOffsetMs) {
-        return spawnOffsetMs < 20_000 ? 4_000 : 2_500;
-    }
 }

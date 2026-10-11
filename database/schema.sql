@@ -272,7 +272,7 @@ CREATE TABLE game_match (
 
     seed BIGINT NULL,
 
-    duration_seconds INT NOT NULL DEFAULT 30,
+    duration_seconds INT NOT NULL DEFAULT 60,
 
     match_state VARCHAR(30) NOT NULL DEFAULT 'PREPARING',
 
@@ -302,7 +302,7 @@ CREATE TABLE game_match (
         ON UPDATE CASCADE,
 
     CONSTRAINT chk_match_duration
-        CHECK (duration_seconds = 30),
+        CHECK (duration_seconds IN (30, 60)),
 
     CONSTRAINT chk_match_state
         CHECK (
@@ -396,16 +396,16 @@ CREATE TABLE fruit_spawn (
         UNIQUE (match_id, spawn_order),
 
     CONSTRAINT chk_spawn_offset
-        CHECK (spawn_offset_ms BETWEEN 0 AND 26600),
+        CHECK (spawn_offset_ms BETWEEN 0 AND 57500),
 
     CONSTRAINT chk_spawn_x_position
         CHECK (x_position BETWEEN 0 AND 758),
 
     CONSTRAINT chk_fall_duration
-        CHECK (fall_duration_ms IN (2500, 4000)),
+        CHECK (fall_duration_ms IN (2500, 3200, 3500, 4000)),
 
     CONSTRAINT chk_spawn_lands_before_match_end
-        CHECK (spawn_offset_ms + fall_duration_ms <= 30000)
+        CHECK (spawn_offset_ms + fall_duration_ms <= 60000)
 );
 
 -- =========================================================
@@ -556,12 +556,12 @@ VALUES
 (
     'CLASSIC',
     'Hứng né bom',
-    'Trận đấu 1v1 kéo dài 30 giây. Dùng phím mũi tên trái/phải để di chuyển một giỏ cố định. Hứng hoa quả được +10 điểm, hứng bom bị -10 điểm. Bỏ qua vật thể không bị trừ điểm.'
+    'Trận đấu 1v1 kéo dài 60 giây. Dùng phím mũi tên trái/phải để di chuyển một giỏ cố định. Hứng hoa quả được +10 điểm, hứng bom bị -10 điểm. Bỏ qua vật thể không bị trừ điểm.'
 ),
 (
     'ORDER',
     'Hứng theo đơn hàng',
-    'Trận đấu 1v1 kéo dài 30 giây. Mỗi trận có ba quả mục tiêu. Dùng phím mũi tên trái/phải để hứng quả trong đơn hàng: đúng +10 điểm, ngoài đơn -5 điểm.'
+    'Trận đấu 1v1 kéo dài 60 giây. Mỗi trận có ba quả mục tiêu. Dùng phím mũi tên trái/phải để hứng quả trong đơn hàng: đúng +10 điểm, ngoài đơn -5 điểm.'
 );
 
 INSERT INTO fruit_group (group_code, group_name, description)
@@ -628,7 +628,7 @@ VALUES
 
 INSERT INTO basket (basket_name, asset_path)
 VALUES
-    ('Giỏ hứng', 'Client/assets/baskets/standard-basket.png');
+    ('Giỏ hứng', 'Client/assets/baskets/basket.png');
 
 INSERT INTO fruit_asset (fruit_id, asset_type, asset_path, is_default)
 SELECT fruit_id, 'SPRITE', default_asset_path, TRUE

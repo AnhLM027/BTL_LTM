@@ -1,8 +1,8 @@
 
-import Client.view.MainScreen;
+import Client.fx.FxClientMain;
 
 public class Main {
     public static void main(String[] args) {
-        MainScreen mainScreen = new MainScreen();
+        FxClientMain.main(args);
     }
 }

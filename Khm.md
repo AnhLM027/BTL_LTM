@@ -119,7 +119,7 @@ public record MatchPreparation(
 
 ### 3.1 `MatchService.prepare()` — tạo spawn phù hợp từng mode
 
-**CLASSIC — 20 vật thể: 16 quả + 4 bom**
+**CLASSIC — 42 vật thể: 36 quả + 6 bom, chia thành 3 giai đoạn trong 60 giây**
 
 ```
 Ràng buộc khi đặt bom:
@@ -130,22 +130,20 @@ Ràng buộc khi đặt bom:
 - Sau khi đặt bom, kiểm tra còn ít nhất 1 "vùng an toàn" (x ∈ [0,280] rộng ≥ 130px)
 
 Thuật toán:
-1. Tạo 20 slot spawn (spawnOffsetMs: 0, 1400, 2800, ..., 26600ms)
-2. Chọn ngẫu nhiên 4 vị trí slot cho bom, thỏa ràng buộc trên
-3. Slot còn lại: gán fruit ngẫu nhiên từ catalog
-4. fall_duration_ms:
-   - spawnOffsetMs < 20000ms → fallDurationMs = 4000
-   - spawnOffsetMs >= 20000ms → fallDurationMs = 2500
-   - Kiểm tra: spawnOffsetMs + fallDurationMs ≤ 30000ms (đảm bảo vật thể kịp xuống giỏ)
+1. Giai đoạn 1: 10 quả + 2 bom, bắt đầu ở 0ms, cách nhau 1000ms, rơi trong 4000ms.
+2. Giai đoạn 2: 10 quả + 3 bom, bắt đầu ở 20000ms, cách nhau 900ms, rơi trong 4000ms.
+3. Giai đoạn 3: 12 quả + 4 bom, bắt đầu ở 40000ms, cách nhau 800ms, rơi trong 2500ms.
+4. Các khoảng nghỉ giữa giai đoạn chỉ hiển thị tăng tốc sau khi vật thể của giai đoạn trước đã rơi hết.
+5. Kiểm tra: spawnOffsetMs + fallDurationMs ≤ 60000ms (đảm bảo vật thể kịp xuống giỏ).
 ```
 
-**ORDER — 20 quả, không có bom**
+**ORDER — 30 quả, không có bom trong 60 giây**
 
 ```
 1. Chọn ngẫu nhiên 3 fruit_id từ catalog → lưu vào match_target_fruit
-2. Spawn 20 quả: mix ngẫu nhiên giữa target fruits và non-target
-   - Tỷ lệ đề xuất: ~12 target + ~8 non-target (đủ để cả 2 loại xuất hiện thường xuyên)
-3. fall_duration_ms: tương tự CLASSIC
+2. Spawn 30 quả trong toàn bộ 60 giây: mix ngẫu nhiên giữa target fruits và non-target
+   - Tỷ lệ đề xuất: ~18 target + ~12 non-target (đủ để đơn hàng có cơ hội hoàn thành)
+3. Khoảng spawn: 1900ms; fall_duration_ms: 3500ms.
 ```
 
 ### 3.2 `CatchEventRepository.process()` — xử lý bom và combo

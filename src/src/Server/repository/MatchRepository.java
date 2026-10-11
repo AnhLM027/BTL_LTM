@@ -12,12 +12,15 @@ import java.util.List;
 import java.util.Optional;
 
 public final class MatchRepository {
+    public static final int MATCH_DURATION_SECONDS = 60;
+
     public GameMatch create(Connection c, long roomId, int modeId, Long seed, long host, long guest,
                             List<FruitSpawn> spawns, List<Integer> targetFruitIds) throws SQLException {
-        try (PreparedStatement s = c.prepareStatement("INSERT INTO game_match (room_id,mode_id,seed,duration_seconds,match_state) VALUES (?,?,?,30,'PREPARING')", Statement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement s = c.prepareStatement("INSERT INTO game_match (room_id,mode_id,seed,duration_seconds,match_state) VALUES (?,?,?,?,'PREPARING')", Statement.RETURN_GENERATED_KEYS)) {
             s.setLong(1, roomId);
             s.setInt(2, modeId);
             s.setLong(3, seed);
+            s.setInt(4, MATCH_DURATION_SECONDS);
             s.executeUpdate();
             try (ResultSet k = s.getGeneratedKeys()) {
                 if (!k.next()) throw new SQLException("Missing match id");

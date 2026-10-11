@@ -1,8 +1,8 @@
 # Fruit Battle Online
 
-> Game đối kháng 1v1 bắt hoa quả, xây dựng bằng Java Swing, TCP socket và MySQL.
+> Game đối kháng 1v1 bắt hoa quả, xây dựng bằng JavaFX, TCP socket và MySQL.
 
-Fruit Battle Online là trò chơi thời gian thực dành cho hai người chơi. Mỗi trận kéo dài 30 giây; client chịu trách nhiệm hiển thị và gửi thao tác, còn server là nguồn dữ liệu chính để xác thực va chạm, tính điểm và đồng bộ trạng thái trận đấu.
+Fruit Battle Online là trò chơi thời gian thực dành cho hai người chơi. Mỗi trận kéo dài 60 giây; client chịu trách nhiệm hiển thị và gửi thao tác, còn server là nguồn dữ liệu chính để xác thực va chạm, tính điểm và đồng bộ trạng thái trận đấu.
 
 ## Tính năng chính
 
@@ -43,7 +43,7 @@ Mỗi lần hứng đúng liên tiếp làm tăng combo. Cứ đủ 5 lần hứ
 
 ~~~text
 ┌──────────────────────┐       TCP / JSON       ┌──────────────────────┐
-│ Java Swing Client    │ <────────────────────> │ Java TCP Game Server │
+│ JavaFX Client        │ <────────────────────> │ Java TCP Game Server │
 │ Login, lobby, game   │                        │ Auth, room, match    │
 └──────────────────────┘                        └──────────┬───────────┘
                                                            │ JDBC
@@ -61,7 +61,7 @@ Server là nơi duy nhất có quyền quyết định điểm, kết quả tr�
 ## Công nghệ
 
 - Java 17+.
-- Java Swing/AWT cho giao diện desktop.
+- JavaFX cho giao diện desktop; Swing client cũ đã được loại bỏ.
 - TCP socket và JSON message.
 - MySQL 8+.
 - JDBC Connector/J.
@@ -73,7 +73,7 @@ Server là nơi duy nhất có quyền quyết định điểm, kết quả tr�
 FruitBattleOnline/
 ├── database/
 │   └── schema.sql
-├── src/src/Client/       # Main client và các màn hình Swing
+├── src/src/Client/       # JavaFX client, session và network
 ├── src/src/Server/       # TCP server, handler, service, repository
 ├── src/src/Shared/       # Model, enum và protocol dùng chung
 ├── src/src/Client/assets/ # Background, fruit, basket và icon

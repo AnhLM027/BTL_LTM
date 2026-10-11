@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/** Pixel-art waiting room using the MainClientFrame v4 component set. */
+/** Pixel-art waiting room using the waiting-room component asset set. */
 public final class FxWaitingRoomView extends StackPane implements TcpGameClient.MessageListener {
     private static final double DESIGN_W = 1080;
     private static final double DESIGN_H = 760;
@@ -40,7 +40,7 @@ public final class FxWaitingRoomView extends StackPane implements TcpGameClient.
     private final Label roomStatus = textLabel("Đang tải trạng thái phòng...", 15, Color.web("#4f2d18"));
     private final Label fruitRule = textLabel("Hứng quả +10", 15, Color.web("#4f2d18"));
     private final Label bombRule = textLabel("Trúng bom −10", 15, Color.web("#4f2d18"));
-    private final Label timeRule = textLabel("30 giây", 15, Color.web("#4f2d18"));
+    private final Label timeRule = textLabel("60 giây", 15, Color.web("#4f2d18"));
     private final Label moveRule = textLabel("Di chuyển giỏ", 15, Color.web("#4f2d18"));
     private final ComboBox<String> mode = new ComboBox<>();
     private final Button inviteButton = imageButton("buttons/green.png", "Mời người chơi", 198, 47);
@@ -61,6 +61,8 @@ public final class FxWaitingRoomView extends StackPane implements TcpGameClient.
     private String roomState = "WAITING";
     private boolean applyingRoomUpdate;
     private boolean bufferingMatchSnapshot;
+    /** True while the view is waiting for the authoritative room snapshot. */
+    private boolean awaitingRoomSnapshot;
 
     public FxWaitingRoomView(FxScreenNavigator navigator, ProtocolMessage initial) {
         this.navigator = navigator;
@@ -169,10 +171,13 @@ public final class FxWaitingRoomView extends StackPane implements TcpGameClient.
         Label title = textLabel("Chọn người chơi để mời", 22, Color.web("#4f2d18"));
         title.setAlignment(Pos.CENTER);
         title.setLayoutX(65);
-        title.setLayoutY(45);
+        title.setLayoutY(43);
         title.setPrefSize(510, 40);
 
-        inviteList.setLayoutX(78);
+        // Center the list inside the 640px invite panel: (640 - 540) / 2.
+        // The previous x=78 left a 22px right margin and made the white
+        // content area visibly drift to the right.
+        inviteList.setLayoutX(50);
         inviteList.setLayoutY(105);
         inviteList.setPrefSize(540, 280);
         inviteList.setMinSize(540, 280);
@@ -309,6 +314,10 @@ public final class FxWaitingRoomView extends StackPane implements TcpGameClient.
     }
 
     private void sendStart() {
+        if (awaitingRoomSnapshot) {
+            roomStatus.setText("Đang đồng bộ trạng thái phòng...");
+            return;
+        }
         if (roomId > 0) send(new ProtocolMessage("START_MATCH", Map.of("roomId", Long.toString(roomId))));
     }
 
@@ -411,13 +420,24 @@ public final class FxWaitingRoomView extends StackPane implements TcpGameClient.
     }
 
     private void applyRoomUpdate(ProtocolMessage message) {
-        navigator.rememberRoom(message);
+        boolean snapshotPending = Boolean.parseBoolean(
+                message.fields().getOrDefault("snapshotPending", "false"));
+        awaitingRoomSnapshot = snapshotPending;
+        if (!snapshotPending) {
+            awaitingRoomSnapshot = false;
+            navigator.rememberRoom(message);
+        }
         roomId = longValue(message, "roomId", -1);
         matchId = longValue(message, "matchId", -1);
         hostPlayerId = longValue(message, "hostPlayerId", -1);
         hasGuest = !message.fields().getOrDefault("guestPlayerId", "").isBlank();
         if (hasGuest) inviteOverlay.setVisible(false);
         roomState = message.fields().getOrDefault("roomState", "WAITING");
+        // FINISHED is a legacy snapshot from servers that reset the match
+        // before the room-reset fix. A room that still has both participants
+        // is reusable, so present it as FULL while the next snapshot/start
+        // request lets the server persist the normalization.
+        if ("FINISHED".equals(roomState) && hasGuest) roomState = "FULL";
         applyingRoomUpdate = true;
         try {
             mode.setValue(message.fields().getOrDefault("modeCode", modeCode(message.fields().get("modeId"))));
@@ -449,7 +469,7 @@ public final class FxWaitingRoomView extends StackPane implements TcpGameClient.
             guestReady.setVisible(false);
             inviteButton.setVisible(true);
         }
-        boolean canStart = localHost && hasGuest && "FULL".equals(roomState);
+        boolean canStart = !awaitingRoomSnapshot && localHost && hasGuest && "FULL".equals(roomState);
         boolean canInvite = localHost && !hasGuest && "WAITING".equals(roomState);
         mode.setDisable(!localHost || !("WAITING".equals(roomState) || "FULL".equals(roomState)));
         inviteButton.setDisable(!canInvite);
@@ -472,7 +492,7 @@ public final class FxWaitingRoomView extends StackPane implements TcpGameClient.
 
     private String roomStateText(String value) {
         return switch (value) {
-            case "FULL" -> "Đang chờ sẵn sàng";
+            case "FULL" -> "Phòng đã đủ người";
             case "PREPARING" -> "Đang chuẩn bị trận";
             case "READY" -> "Cả hai đã sẵn sàng";
             case "PLAYING" -> "Đang thi đấu";
