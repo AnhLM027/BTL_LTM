@@ -7,7 +7,7 @@ import java.sql.SQLException;
 public final class DatabaseConfig {
     private static final String DEFAULT_URL = "jdbc:mysql://localhost:3306/fruit_battle_online";
     private static final String DEFAULT_USER = "root";
-    private static final String DEFAULT_PASSWORD = "123456";
+    private static final String DEFAULT_PASSWORD = "nguyenvietquang05";
 
     private DatabaseConfig() {
     }

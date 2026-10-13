@@ -166,3 +166,52 @@
 .blue-button:hover { -fx-background-color: #258be8; }
 .orange-button { -fx-background-color: #d26d0d; }
 .orange-button:hover { -fx-background-color: #ef8516; }
+
+/* Pixel Admin Shop Styles */
+.pixel-admin-table {
+    -fx-font-family: "Pixelify Sans", "Consolas", monospace;
+    -fx-font-size: 13px;
+    -fx-background-color: #FFFDF7;
+    -fx-border-color: #8B6914;
+    -fx-border-width: 2px;
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+}
+.pixel-admin-table .column-header {
+    -fx-background-color: #EAD8B1;
+    -fx-border-color: #8B6914;
+    -fx-border-width: 0 1px 2px 0;
+    -fx-padding: 8px 6px;
+}
+.pixel-admin-table .column-header .label {
+    -fx-text-fill: #3D2B1F;
+    -fx-font-family: "Pixelify Sans", "Consolas", monospace;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-alignment: CENTER-LEFT;
+}
+.pixel-admin-table .table-row-cell {
+    -fx-background-color: #FFFDF7;
+    -fx-border-color: transparent transparent #E6D5B8 transparent;
+    -fx-border-width: 0 0 1px 0;
+    -fx-cell-size: 34px;
+}
+.pixel-admin-table .table-row-cell:odd {
+    -fx-background-color: #FBF4E4;
+}
+.pixel-admin-table .table-row-cell:hover {
+    -fx-background-color: #F5E5C4;
+}
+.pixel-admin-table .table-row-cell:selected {
+    -fx-background-color: #D4A843;
+    -fx-text-fill: #3D2B1F;
+}
+.pixel-admin-table .table-row-cell:selected .text {
+    -fx-fill: #3D2B1F;
+    -fx-font-weight: bold;
+}
+.pixel-admin-table .table-cell {
+    -fx-text-fill: #3D2B1F;
+    -fx-padding: 6px 10px;
+    -fx-alignment: CENTER-LEFT;
+}

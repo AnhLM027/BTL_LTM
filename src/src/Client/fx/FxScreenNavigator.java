@@ -104,6 +104,9 @@ public final class FxScreenNavigator {
         if (stage.getScene() != null && stage.getScene().getRoot() instanceof FxRunGameView oldGame) {
             oldGame.dispose();
         }
+        if (stage.getScene() != null && stage.getScene().getRoot() instanceof FxAdminView oldAdmin) {
+            oldAdmin.dispose();
+        }
         if (stage.getScene() == null) stage.setScene(new Scene(view, DESIGN_WIDTH, DESIGN_HEIGHT));
         else stage.getScene().setRoot(view);
         stage.show();

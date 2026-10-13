@@ -2,6 +2,7 @@ package Client.fx;
 
 import Client.session.GameClientSession;
 import Client.Constants;
+import Client.fx.util.SoundManager;
 import Client.network.TcpGameClient;
 import Server.network.ProtocolMessage;
 import javafx.application.Application;
@@ -140,6 +141,11 @@ public final class FxClientMain extends Application {
     }
 
     public static boolean isActive() { return active; }
+
+    @Override
+    public void stop() {
+        SoundManager.getInstance().stopAll();
+    }
 
     public static void main(String[] args) {
         for (String arg : args) if (arg.startsWith("--snapshot=")) snapshotPath = arg.substring("--snapshot=".length());

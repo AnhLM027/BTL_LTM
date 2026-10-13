@@ -1,8 +1,8 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" type="Application" factoryName="Application" name="FxClientMain">
+  <configuration default="false" name="FxClientMain" type="Application" factoryName="Application" activateToolWindowBeforeRun="false">
     <option name="MAIN_CLASS_NAME" value="Client.fx.FxClientMain" />
     <module name="fruit-battle-online" />
-    <option name="VM_PARAMETERS" value="-Dfile.encoding=UTF-8 --enable-native-access=ALL-UNNAMED" />
+    <option name="VM_PARAMETERS" value="--module-path &quot;C:\Users\nviquang\.m2\repository\org\openjfx\javafx-controls\21.0.8\javafx-controls-21.0.8-win.jar;C:\Users\nviquang\.m2\repository\org\openjfx\javafx-graphics\21.0.8\javafx-graphics-21.0.8-win.jar;C:\Users\nviquang\.m2\repository\org\openjfx\javafx-base\21.0.8\javafx-base-21.0.8-win.jar;C:\Users\nviquang\.m2\repository\org\openjfx\javafx-fxml\21.0.8\javafx-fxml-21.0.8-win.jar;C:\Users\nviquang\.m2\repository\org\openjfx\javafx-media\21.0.8\javafx-media-21.0.8-win.jar&quot; --add-modules javafx.controls,javafx.fxml,javafx.media" />
     <method v="2">
       <option name="Make" enabled="true" />
     </method>
