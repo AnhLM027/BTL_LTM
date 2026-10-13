@@ -103,10 +103,10 @@ public class AdminAccountsPane extends Pane {
         getChildren().add(navFruitsBtn);
 
         // 4. NPC Sprite & Speech Bubble (Left, Behind Counter)
-        npcView.setFitWidth(180);
-        npcView.setFitHeight(230);
-        npcView.setLayoutX(60);
-        npcView.setLayoutY(350);
+        npcView.setFitWidth(440);
+        npcView.setFitHeight(320);
+        npcView.setLayoutX(-85);
+        npcView.setLayoutY(300);
         npcView.setPreserveRatio(true);
         npcView.setSmooth(false);
         setNpcSprite("npc/shopkeeper-wave.gif");
@@ -182,8 +182,8 @@ public class AdminAccountsPane extends Pane {
 
 
         PixelButton addBtn = PixelButton.green("➕ Thêm", 140, 44, this::createAccount);
-        editBtn = PixelButton.blue("✏️ Sửa", 130, 44, this::editAccount);
-        deleteBtn = PixelButton.orange("🗑️ Xóa", 130, 44, this::deleteAccount);
+        editBtn = PixelButton.blue("✏ Sửa", 130, 44, this::editAccount);
+        deleteBtn = PixelButton.orange("🗑 Xóa", 130, 44, this::deleteAccount);
         PixelButton refreshBtn = PixelButton.blue("🔄 Làm mới", 140, 44, this::loadAccounts);
 
         editBtn.setDisable(true);

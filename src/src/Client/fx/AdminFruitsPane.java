@@ -149,8 +149,8 @@ public class AdminFruitsPane extends Pane {
         VBox.setMargin(buttonBar, new Insets(0, 10, 0, 10));
 
         PixelButton addBtn = PixelButton.green("➕ Thêm quả", 140, 44, this::createFruit);
-        editBtn = PixelButton.blue("✏️ Sửa", 130, 44, this::editFruit);
-        deleteBtn = PixelButton.orange("🗑️ Xóa", 130, 44, this::deleteFruit);
+        editBtn = PixelButton.blue("✏ Sửa", 130, 44, this::editFruit);
+        deleteBtn = PixelButton.orange("🗑 Xóa", 130, 44, this::deleteFruit);
         PixelButton refreshBtn = PixelButton.blue("🔄 Làm mới", 140, 44, this::loadFruits);
 
         editBtn.setDisable(true);
@@ -168,10 +168,10 @@ public class AdminFruitsPane extends Pane {
         dataPanel.getChildren().addAll(panelBg, contentBox);
 
         // 5. NPC Sprite & Speech Bubble (Right Side Behind Counter)
-        npcView.setFitWidth(180);
-        npcView.setFitHeight(230);
-        npcView.setLayoutX(840);
-        npcView.setLayoutY(350);
+        npcView.setFitWidth(440);
+        npcView.setFitHeight(320);
+        npcView.setLayoutX(685);
+        npcView.setLayoutY(300);
         npcView.setPreserveRatio(true);
         npcView.setSmooth(false);
         setNpcSprite("npc/shopkeeper-wave.gif");
