@@ -39,6 +39,7 @@ public final class GameTest {
         protocol();
         System.setProperty("fruit.admin.password", PASSWORD);
         rules();
+        invitations();
         lifecycle();
         boolean mysql = Arrays.asList(args).contains("--mysql");
         persistence(mysql);
@@ -171,22 +172,22 @@ public final class GameTest {
         player.objects.clear();
         opponent.objects.clear();
         match.nextSpawn = 100;
-        player.energy = 69;
+        player.energy = 89;
         match.skill(player, 3);
-        check(player.energy == 69 && player.magnet == 0, "Magnet rejects insufficient energy");
+        check(player.energy == 89 && player.magnet == 0, "Magnet rejects insufficient energy");
         player.energy = 100;
         opponent.incomingSkill = 2;
         player.freeze = player.incomingSkill = 2;
         match.skill(player, 3);
         check(
-                player.energy == 30,
-                "Magnet costs 70 energy even when opponent has an incoming effect");
+                player.energy == 10,
+                "Magnet costs 90 energy even when opponent has an incoming effect");
         near(player.magnet, 5, .001, "Magnet lasts five seconds on the caster");
-        near(player.basketWidth(), 140, .001, "Magnet increases basket width by 40 percent");
-        near(opponent.basketWidth(), 100, .001, "Magnet leaves opponent basket unchanged");
+        near(player.basketWidth(), 100, .001, "Magnet keeps the basket at its normal width");
+        near(opponent.basketWidth(), 100, .001, "Magnet leaves the opponent basket unchanged");
         check(
                 player.view().containsKey("magnet") && player.view().containsKey("basketWidth"),
-                "Snapshot exposes magnet duration and collision width for reconnect and rendering");
+                "Snapshot exposes magnet duration and normal collision width for rendering");
         match.spawnBase();
         near(
                 player.objects.get(0).speed,
@@ -196,27 +197,22 @@ public final class GameTest {
         player.objects.clear();
         opponent.objects.clear();
         String wrong = match.target.equals("APPLE") ? "BANANA" : "APPLE";
-        int[] deltas = {10, -5, -10};
-        String[] kinds = {match.target, wrong, "BOMB"};
-        player.combo = 0;
-        for (int i = 0; i < kinds.length; i++) {
-            int before = player.score;
-            player.objects.add(new Drop(600 + i, kinds[i], 480, 540, 200));
-            match.step(.01);
-            check(
-                    player.objects.isEmpty() && player.score == before + deltas[i],
-                    "Expanded basket catches "
-                            + kinds[i]
-                            + " beyond normal reach with normal scoring");
-        }
-        player.objects.add(new Drop(610, match.target, 489, 540, 200));
-        match.step(.01);
-        check(player.objects.size() == 1, "Magnet does not catch outside its 40 percent expansion");
+        Drop targetNear = new Drop(600, match.target, 490, 480, 0);
+        Drop wrongNear = new Drop(601, wrong, 490, 480, 0);
+        Drop bombNear = new Drop(602, "BOMB", 490, 480, 0);
+        Drop targetFar = new Drop(603, match.target, 560, 480, 0);
+        player.objects.add(targetNear);
+        player.objects.add(wrongNear);
+        player.objects.add(bombNear);
+        player.objects.add(targetFar);
+        match.step(.1);
+        check(
+                targetNear.x < 490 && targetNear.x > player.x,
+                "Magnet gradually pulls a nearby target fruit toward the basket");
+        near(wrongNear.x, 490, .001, "Magnet never pulls a nearby wrong fruit");
+        near(bombNear.x, 490, .001, "Magnet never pulls a nearby bomb");
+        near(targetFar.x, 560, .001, "Magnet does not pull a target outside its local range");
         player.objects.clear();
-        opponent.objects.add(new Drop(611, match.target, 480, 540, 200));
-        match.step(.01);
-        check(opponent.objects.size() == 1, "Unboosted opponent still misses at the same distance");
-        opponent.objects.clear();
         player.energy = 100;
         double beforeRefresh = player.magnet;
         match.skill(player, 3);
@@ -225,15 +221,17 @@ public final class GameTest {
                 "Shared cooldown prevents magnet refresh or stacking");
         player.x = 50;
         match.step(.01);
-        near(player.x, 70, .001, "Expanded basket stays within the field edge");
+        near(player.x, 50, .001, "Normal-width magnet basket stays within the field edge");
         advance(match, 5.1);
         check(
                 player.magnet == 0 && player.basketWidth() == 100,
-                "Magnet expiry restores normal width");
+                "Magnet expiry leaves the normal basket width intact");
         player.x = 400;
-        player.objects.add(new Drop(612, match.target, 480, 540, 200));
+        player.objects.add(new Drop(612, match.target, 490, 480, 0));
         match.step(.01);
-        check(player.objects.size() == 1, "Expanded-only catch is missed after magnet expires");
+        check(
+                player.objects.get(0).x == 490,
+                "Target fruit is no longer pulled after magnet expires");
     }
 
     private static void schedule(GameServer server, int firstId, int secondId) {
@@ -479,6 +477,77 @@ public final class GameTest {
                     ok(betaAgain.await("AUTH"), true, "Unlocked account can log in");
                     queueAndMatch(server, first, betaAgain, firstId, secondId);
                 }
+            }
+        }
+    }
+
+    private static void invitations() throws Exception {
+        Path data = Files.createTempDirectory("fruit-test-invites-");
+        try (GameServer server = new GameServer(0, data, true)) {
+            server.start();
+            try (Peer inviter = new Peer(server.port()); Peer invitee = new Peer(server.port())) {
+                inviter.send(
+                        "REGISTER",
+                        "username",
+                        "invite_alpha",
+                        "password",
+                        PASSWORD,
+                        "displayName",
+                        "Vườn táo");
+                Map<String, Object> inviterAuth = inviter.await("AUTH");
+                ok(inviterAuth, true, "Inviter registration succeeds");
+                int inviterId = integer(mapValue(inviterAuth.get("user")).get("id"));
+                invitee.send(
+                        "REGISTER",
+                        "username",
+                        "invite_beta",
+                        "password",
+                        PASSWORD,
+                        "displayName",
+                        "Nho tím");
+                Map<String, Object> inviteeAuth = invitee.await("AUTH");
+                ok(inviteeAuth, true, "Invitee registration succeeds");
+                int inviteeId = integer(mapValue(inviteeAuth.get("user")).get("id"));
+
+                inviter.send("ONLINE_PLAYERS", "query", "nho");
+                Map<String, Object> roster = inviter.await("ONLINE_PLAYERS");
+                Map<String, Object> only = mapValue(list(roster.get("rows")).get(0));
+                check(integer(only.get("id")) == inviteeId, "Online search finds display names without accents");
+                check(Boolean.TRUE.equals(only.get("inviteable")), "Available online player can receive an invite");
+                check(!only.containsKey("hash") && !only.containsKey("salt"), "Online roster exposes no credentials");
+
+                invitee.send("MATCH_FIND");
+                invitee.await("QUEUE");
+                inviter.send("INVITE_SEND", "targetId", inviteeId);
+                check(type(inviter.await("ERROR")).equals("ERROR"), "Cannot invite a player in automatic matchmaking");
+                invitee.send("MATCH_CANCEL");
+                invitee.await("QUEUE");
+
+                inviter.send("INVITE_SEND", "targetId", inviteeId);
+                Map<String, Object> sent = inviter.await("INVITE_STATUS");
+                Map<String, Object> received = invitee.await("INVITE_RECEIVED");
+                String declinedId = text(received.get("inviteId"));
+                check(
+                        text(sent.get("inviteId")).equals(declinedId)
+                                && integer(mapValue(received.get("from")).get("id")) == inviterId,
+                        "Invitation reaches exactly the requested online player");
+                invitee.send("INVITE_DECLINE", "inviteId", declinedId);
+                check(
+                        text(inviter.await("INVITE_STATUS").get("state")).equals("DECLINED"),
+                        "Inviter receives a declined invitation status");
+
+                inviter.send("INVITE_SEND", "targetId", inviteeId);
+                String acceptedId = text(invitee.await("INVITE_RECEIVED").get("inviteId"));
+                inviter.await("INVITE_STATUS");
+                invitee.send("INVITE_ACCEPT", "inviteId", acceptedId);
+                Map<String, Object> foundByInviter = inviter.await("MATCH_FOUND");
+                Map<String, Object> foundByInvitee = invitee.await("MATCH_FOUND");
+                check(
+                        text(foundByInviter.get("matchId")).equals(text(foundByInvitee.get("matchId"))),
+                        "Accepting an invitation creates one shared direct match");
+                check(
+                        server.engine.submit(() -> server.queue.isEmpty() && server.activeByUser.size() == 2).get(),
+                        "Direct invitation bypasses and leaves the automatic queue empty");
             }
         }
     }

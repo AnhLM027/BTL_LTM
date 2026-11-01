@@ -17,4 +17,10 @@ public interface ClientView {
     void queueChanged(boolean queued);
 
     void resultSaved(boolean saved);
+
+    void onlinePlayersUpdated();
+
+    void inviteReceived(java.util.Map<String, Object> invite);
+
+    void closeInviteDialog();
 }

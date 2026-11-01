@@ -16,6 +16,8 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 public final class Match {
+    private static final double MAGNET_RANGE = 120;
+    private static final double MAGNET_PULL_SPEED = 220;
     private final GameServer server;
 
     public final String id = UUID.randomUUID().toString();
@@ -111,6 +113,7 @@ public final class Match {
                 Drop drop = iterator.next();
                 double previousY = drop.y;
                 drop.y += drop.speed * used;
+                pullTargetTowardBasket(player, drop, used);
                 // Swept vertical collision prevents a fast fruit skipping over the basket.
                 boolean crossesBasket =
                         previousY <= GameServer.BASKET_Y + 15 + GameServer.OBJECT_RADIUS
@@ -124,6 +127,21 @@ public final class Match {
             }
         }
         if (elapsed >= 60) finish("TIME_UP", 0);
+    }
+
+    /** Magnet assists only the current target near the basket; mistakes remain under player control. */
+    private void pullTargetTowardBasket(Player player, Drop drop, double dt) {
+        if (player.magnet <= 0
+                || !drop.kind.equals(target)
+                || drop.y < GameServer.BASKET_Y - 200)
+            return;
+        double dx = player.x - drop.x;
+        double dy = GameServer.BASKET_Y - drop.y;
+        double distance = Math.hypot(dx, dy);
+        if (distance >= MAGNET_RANGE || Math.abs(dx) < .001) return;
+        double proximity = 1 - distance / MAGNET_RANGE;
+        double pull = MAGNET_PULL_SPEED * dt * (.35 + .65 * proximity);
+        drop.x += Math.copySign(Math.min(Math.abs(dx), pull), dx);
     }
 
     public double baseSpeed() {
@@ -224,7 +242,7 @@ public final class Match {
             skillError(attacker, "Kỹ năng không hợp lệ.");
             return;
         }
-        int cost = skill == 1 ? 30 : skill == 2 ? 50 : 70;
+        int cost = skill == 1 ? 30 : skill == 2 ? 50 : 90;
         Player victim = skill == 3 ? attacker : other(attacker.id);
         if (attacker.energy < cost) {
             skillError(attacker, "Không đủ năng lượng.");
@@ -251,8 +269,6 @@ public final class Match {
         if (skill == 2) victim.freeze = duration;
         if (skill == 3) {
             attacker.magnet = duration;
-            double halfWidth = attacker.basketWidth() / 2;
-            attacker.x = Math.max(halfWidth, Math.min(800 - halfWidth, attacker.x));
         }
         broadcast(
                 obj(
@@ -275,7 +291,7 @@ public final class Match {
                                 ? "CẢNH BÁO BOM!"
                                 : skill == 2
                                         ? "Giỏ bị làm chậm 40%!"
-                                        : "Giỏ nam châm: vùng hứng rộng hơn 40% trong 5 giây!"));
+                                        : "Giỏ nam châm: hút quả mục tiêu ở gần trong 5 giây!"));
     }
 
     public void skillError(Player player, String message) {

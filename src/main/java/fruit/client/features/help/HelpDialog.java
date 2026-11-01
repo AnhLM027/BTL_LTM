@@ -1,17 +1,30 @@
 package fruit.client.features.help;
 
-import static fruit.client.shared.ui.UiComponents.*;
-import static fruit.client.shared.ui.UiTheme.*;
-
 import fruit.client.application.ClientScreens;
 import fruit.client.shared.ui.GameArt;
-
+import static fruit.client.shared.ui.UiComponents.divider;
+import static fruit.client.shared.ui.UiComponents.label;
+import static fruit.client.shared.ui.UiComponents.tag;
+import static fruit.client.shared.ui.UiComponents.text;
+import static fruit.client.shared.ui.UiTheme.CORAL;
+import static fruit.client.shared.ui.UiTheme.INK;
+import static fruit.client.shared.ui.UiTheme.LIME;
+import static fruit.client.shared.ui.UiTheme.MUTED;
+import static fruit.client.shared.ui.UiTheme.PANEL;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 
 /** Illustrated rulebook using the fruit, basket and skill art from the match. */
 public final class HelpDialog {
@@ -96,9 +109,8 @@ public final class HelpDialog {
                                 "MAGNET",
                                 "3",
                                 "Giỏ nam châm",
-                                "70 năng lượng",
-                                "Giỏ của bạn có vùng hứng rộng hơn 40% trong 5 giây, áp dụng cả quả"
-                                    + " sai và bom."),
+                                "90 năng lượng",
+                                "Trong 5 giây, nam châm hút những quả đúng gần giỏ"),
                         text(
                                 "HỒI CHIÊU CHUNG / 6 giây · Tấn công không cộng dồn; nam châm hỗ"
                                     + " trợ giỏ của bạn",
@@ -117,6 +129,7 @@ public final class HelpDialog {
         VBox content = new VBox(16, heading, divider(), tabs);
         content.setPadding(new Insets(20));
         content.setPrefWidth(Math.min(800, ui.stage.getWidth() - 80));
+        GameArt.decorate(content, 14);
         dialog.getDialogPane().setContent(content);
         dialog.getDialogPane().setStyle("-fx-background-color:" + PANEL + ";-fx-font-size:14px;");
         dialog.setResizable(true);

@@ -14,6 +14,7 @@ import fruit.client.features.gameplay.CatchEffect;
 import fruit.client.features.gameplay.ClientFeedback;
 import fruit.client.features.gameplay.GameplayActions;
 import fruit.client.features.matchmaking.MatchmakingActions;
+import fruit.client.features.matchmaking.InviteActions;
 import fruit.client.infrastructure.network.ClientConnection;
 
 import java.net.ConnectException;
@@ -33,6 +34,7 @@ public final class ClientController implements AutoCloseable {
     private final ClientConnection connection;
     private final AccountActions accounts = new AccountActions(this);
     private final MatchmakingActions matchmaking = new MatchmakingActions(this);
+    private final InviteActions invites = new InviteActions(this);
     private final GameplayActions gameplay = new GameplayActions(this);
     private final AdminActions admin = new AdminActions(this);
     private ClientView view;
@@ -146,7 +148,7 @@ public final class ClientController implements AutoCloseable {
             }
             case "CATCH_EVENT" -> feedback.catchFeedback(event);
             case "TARGET_CHANGE" -> {
-                feedback.targetPulseStart = System.nanoTime();
+                feedback.targetChanged(System.nanoTime());
                 feedback.audio.play("target", .7);
             }
             case "FRUIT_SPAWN", "SCORE_UPDATE" -> {
@@ -178,7 +180,11 @@ public final class ClientController implements AutoCloseable {
                 if (bool(event, "ok") && model.screen.equals("admin")) loadAdmin();
             }
             case "QUEUE" -> receiveQueue(event);
+            case "ONLINE_PLAYERS" -> invites.receiveOnlinePlayers(event);
+            case "INVITE_RECEIVED" -> invites.receiveInvite(event);
+            case "INVITE_STATUS" -> invites.receiveInviteStatus(event);
             case "MATCH_FOUND" -> {
+                view.closeInviteDialog();
                 feedback.restoringMatch = bool(event, "rejoin");
                 String found = String.valueOf(event.get("matchId"));
                 if (!found.equals(feedback.presentationMatch)) {
@@ -278,6 +284,18 @@ public final class ClientController implements AutoCloseable {
 
     public void findMatch() {
         matchmaking.findMatch();
+    }
+
+    public void loadOnlinePlayers(String query) {
+        invites.loadOnlinePlayers(query);
+    }
+
+    public void invitePlayer(int targetId) {
+        invites.invitePlayer(targetId);
+    }
+
+    public void respondInvite(String inviteId, boolean accepted) {
+        invites.respondInvite(inviteId, accepted);
     }
 
     public void move(int next) {

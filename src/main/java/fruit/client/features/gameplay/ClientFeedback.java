@@ -97,4 +97,9 @@ public final class ClientFeedback {
         if (effects.size() >= 48) effects.remove(0);
         effects.add(fx);
     }
+
+    /** Starts the shared visual window for a server-authoritative target rotation. */
+    public void targetChanged(long now) {
+        targetPulseStart = now;
+    }
 }

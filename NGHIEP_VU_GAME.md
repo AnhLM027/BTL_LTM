@@ -162,7 +162,7 @@ Mục tiêu được chọn trong ba loại: táo, chuối và nho. Hai người
 |---|---|---:|---|
 | Gửi bom | `1` | 30 năng lượng | Cảnh báo khoảng 0,65 giây rồi tạo một quả bom ở vị trí giỏ đối thủ khi kích hoạt. Đối thủ có thể di chuyển để né. |
 | Làm chậm | `2` | 50 năng lượng | Giảm 40% tốc độ di chuyển giỏ đối thủ trong 3 giây. |
-| Giỏ nam châm | `3` | 70 năng lượng | Trong 5 giây, vùng hứng của chính người dùng rộng thêm 40% (100 → 140). Áp dụng cả quả đúng, quả sai và bom; không đổi tốc độ rơi, không hút vật thể từ xa. |
+| Giỏ nam châm | `3` | 90 năng lượng | Trong 5 giây, nam châm gắn trên giỏ kéo nhẹ quả mục tiêu đã ở trong bán kính 120 về tâm giỏ. Người chơi vẫn tự di chuyển để hứng; vùng hứng giữ nguyên 100, bom và quả sai không bị hút, tốc độ rơi không đổi. |
 
 Điều kiện sử dụng:
 

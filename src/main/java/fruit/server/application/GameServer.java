@@ -155,6 +155,7 @@ public final class GameServer implements AutoCloseable {
                 match.step(dt);
                 if (!match.finished) match.broadcast(match.snapshot());
             }
+            matchmaking.expireInvites(now);
             if (!unsavedMatches.isEmpty() && now >= retrySaveAt) retrySaves();
         } catch (Exception e) {
             // A malformed request or a failed persistence operation must not kill the game loop.
@@ -222,6 +223,11 @@ public final class GameServer implements AutoCloseable {
                 case "HISTORY" -> session.send(obj("type", "HISTORY", "rows", history(user.id)));
                 case "ADMIN_GET" -> adminData(session, request);
                 case "ADMIN_LOCK" -> adminLock(session, request);
+                case "ONLINE_PLAYERS" -> onlinePlayers(session, request);
+                case "INVITE_SEND" -> invitePlayer(session, request);
+                case "INVITE_ACCEPT" -> respondInvite(session, request, true);
+                case "INVITE_DECLINE" -> respondInvite(session, request, false);
+                case "INVITE_CANCEL" -> cancelInvite(session, request);
                 case "MATCH_FIND" -> findMatch(session);
                 case "MATCH_CANCEL" -> cancelQueue(session);
                 case "MATCH_REJOIN" -> rejoin(session, true);
@@ -280,6 +286,22 @@ public final class GameServer implements AutoCloseable {
 
     public void adminLock(Session session, Map<String, Object> request) throws Exception {
         admin.adminLock(session, request);
+    }
+
+    public void onlinePlayers(Session session, Map<String, Object> request) {
+        matchmaking.onlinePlayers(session, str(request, "query"));
+    }
+
+    public void invitePlayer(Session session, Map<String, Object> request) {
+        matchmaking.invitePlayer(session, integer(request, "targetId"));
+    }
+
+    public void respondInvite(Session session, Map<String, Object> request, boolean accepted) {
+        matchmaking.respondInvite(session, str(request, "inviteId"), accepted);
+    }
+
+    public void cancelInvite(Session session, Map<String, Object> request) {
+        matchmaking.cancelInvite(session, str(request, "inviteId"));
     }
 
     public void findMatch(Session session) {

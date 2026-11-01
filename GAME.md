@@ -147,10 +147,10 @@ Trò chơi có 3 kỹ năng chính. Người chơi sử dụng phím `1`, `2`, `
 
 ### 4.3. Giỏ nam châm
 
-- Phím sử dụng: `3`; tiêu hao 70 năng lượng.
-- Tăng chiều rộng vùng hứng của chính mình thêm 40%, từ 100 lên 140 đơn vị, trong 5 giây.
-- Áp dụng cho cả quả mục tiêu, quả sai và bom; vẫn tính điểm và combo theo luật bình thường.
-- Không thay đổi tốc độ rơi hoặc tự hút vật thể từ xa. Hết hiệu lực, giỏ trở lại kích thước cũ.
+- Phím sử dụng: `3`; tiêu hao 90 năng lượng.
+- Gắn nam châm lên giỏ trong 5 giây; chiều rộng vùng hứng giữ nguyên 100 đơn vị.
+- Chỉ quả đang là mục tiêu trong bán kính 120 đơn vị mới bị kéo nhẹ theo chiều ngang về tâm giỏ; người chơi vẫn phải tự di chuyển để hứng.
+- Bom và quả sai giữ quỹ đạo bình thường; kỹ năng không thay đổi tốc độ rơi.
 - Có thể dùng khi đang chịu kỹ năng tấn công. Hồi chiêu chung 6 giây, không cộng dồn hay làm mới hiệu lực.
 
 ### 4.4. Quy tắc sử dụng kỹ năng

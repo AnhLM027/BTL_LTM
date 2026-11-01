@@ -72,7 +72,8 @@ for name, notes, beat in [
     ("bomb-warning", [84, 72, 84], .08), ("combo", [72, 76, 79, 84], .07),
     ("freeze", [88, 83, 76, 71], .07), ("freeze-end", [71, 76, 83], .055),
     ("magnet", [60, 67, 74, 81, 88], .045), ("magnet-end", [81, 74, 67], .05),
-    ("target", [74, 79], .075), ("time-warning", [67, 67, 79], .09),
+    # Short C7/G7 bell-like cue; intentionally distinct from catches and skills.
+    ("target", [96, 103], .045), ("time-warning", [67, 67, 79], .09),
     ("win", [60, 64, 67, 72, 76, 79, 84], .15),
     ("lose", [67, 64, 62, 55], .21), ("draw", [60, 67, 64, 72], .17),
 ]:

@@ -701,9 +701,9 @@ public final class ClientTest {
             if (skill == 3) {
                 int otherId = engine(() -> server.activeByUser.get(playerId).other(playerId).id);
                 check(
-                        number(opponent.player(playerId), "basketWidth") == 140
+                        number(opponent.player(playerId), "basketWidth") == 100
                                 && number(opponent.player(otherId), "basketWidth") == 100,
-                        "Magnet widens only the caster basket in TCP snapshots");
+                        "Magnet keeps both basket widths normal in TCP snapshots");
             }
             Thread.sleep(160); // Let the client receive and paint the matching snapshot.
             screenshot(skill == 2 ? "ui-freeze.png" : "ui-magnet.png");

@@ -65,7 +65,7 @@ public final class GameScreen {
         String[] notes = {
             "30 năng lượng · Bom cảnh báo",
             "50 năng lượng · Giỏ chậm 3s",
-            "70 năng lượng · +40% · 5s"
+            "90 năng lượng · Hút quả đúng · 5s"
         };
         for (int i = 0; i < 3; i++) {
             final int skill = i + 1;

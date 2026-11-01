@@ -28,6 +28,8 @@ public final class ClientState {
     public String rankingQuery = "";
     public List<Map<String, Object>> ranking = new ArrayList<>();
     public List<Map<String, Object>> history = new ArrayList<>();
+    public List<Map<String, Object>> onlinePlayers = new ArrayList<>();
+    public String onlineQuery = "";
     public List<Map<String, Object>> adminUsers = new ArrayList<>();
     public List<Map<String, Object>> adminMatches = new ArrayList<>();
     public Map<String, Object> adminStats = new LinkedHashMap<>();

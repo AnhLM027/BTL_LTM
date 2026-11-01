@@ -80,6 +80,6 @@ public final class Player {
     }
 
     public double basketWidth() {
-        return GameServer.BASKET_WIDTH * (magnet > 0 ? 1.4 : 1);
+        return GameServer.BASKET_WIDTH;
     }
 }

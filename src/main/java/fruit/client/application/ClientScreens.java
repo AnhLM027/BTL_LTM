@@ -23,6 +23,7 @@ import fruit.client.features.help.HelpDialog;
 import fruit.client.features.history.HistoryScreen;
 import fruit.client.features.leaderboard.LeaderboardScreen;
 import fruit.client.features.lobby.LobbyScreen;
+import fruit.client.features.matchmaking.InviteDialog;
 import fruit.client.features.results.ResultScreen;
 import fruit.client.features.settings.AudioSettingsDialog;
 import fruit.client.shared.preview.DemoData;
@@ -560,6 +561,21 @@ public final class ClientScreens implements ClientView {
                         ? "Kết quả đã lưu vào lịch sử thi đấu."
                         : "Kết quả đang chờ lưu. Máy chủ sẽ tự thử lại.");
         savedStatus.setTextFill(saved ? C_MUTED : C_CORAL);
+    }
+
+    @Override
+    public void onlinePlayersUpdated() {
+        InviteDialog.refresh(this);
+    }
+
+    @Override
+    public void inviteReceived(Map<String, Object> invite) {
+        InviteDialog.showIncoming(this, invite);
+    }
+
+    @Override
+    public void closeInviteDialog() {
+        InviteDialog.close(this);
     }
 
     public void stop() {

@@ -63,7 +63,7 @@ Chạy `run.ps1 -Mode database` để tạo mới hoặc kiểm tra cấu trúc 
 | ← / → | Di chuyển giỏ |
 | 1 | Gửi bom — 30 năng lượng |
 | 2 | Làm chậm giỏ đối thủ 40% trong 3 giây — 50 năng lượng |
-| 3 | Giỏ nam châm: tăng vùng hứng của chính mình 40% trong 5 giây, áp dụng cả quả sai và bom — 70 năng lượng |
+| 3 | Giỏ nam châm: hút nhẹ quả đúng mục tiêu trong bán kính 120 trong 5 giây — 90 năng lượng |
 | F8 | Tắt/bật toàn bộ âm thanh |
 
 Nút **Âm thanh** mở ba thanh âm lượng **Chung / Nhạc nền / Hiệu ứng**, cùng tùy chọn giảm chuyển động và rung sân. Các lựa chọn được lưu tại `data/client-settings.properties`. Không có thiết bị âm thanh vẫn chơi được.

@@ -7,7 +7,8 @@ import java.util.Map;
 public final class Drop {
     public final long id;
     public final String kind;
-    public final double x, speed;
+    public double x;
+    public final double speed;
     public double y;
 
     public Drop(long id, String kind, double x, double y, double speed) {

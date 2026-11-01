@@ -3,6 +3,7 @@ package fruit.client.features.lobby;
 import fruit.client.application.ClientController;
 import fruit.client.application.ClientScreens;
 import fruit.client.application.ClientState;
+import fruit.client.features.matchmaking.InviteDialog;
 import static fruit.client.shared.ui.GameArt.drawAvatar;
 import static fruit.client.shared.ui.UiComponents.button;
 import static fruit.client.shared.ui.UiComponents.divider;
@@ -101,7 +102,19 @@ public final class LobbyScreen {
                         12,
                         model.queued ? LIME : MUTED,
                         true);
-        HBox action = new HBox(14, ui.findButton, ui.queueLabel);
+        Button inviteButton =
+                button(
+                        "Mời người chơi",
+                        false,
+                        () -> {
+                            if (model.queued) {
+                                ui.toast("Hủy tìm trận trước khi gửi lời mời.", true);
+                                return;
+                            }
+                            InviteDialog.show(ui);
+                        });
+        inviteButton.setStyle("-fx-padding:9 16;");
+        HBox action = new HBox(14, ui.findButton, inviteButton, ui.queueLabel);
         action.setAlignment(Pos.CENTER_LEFT);
         hero.getChildren().addAll(clearing, action);
 

@@ -65,7 +65,7 @@ Các thời lượng dưới đây là thông số mỹ thuật dự kiến, s�
 | Combo bội số 5 | Huy hiệu combo bật lên, điểm thưởng +20 rõ ràng | Chuỗi nốt tăng dần |
 | Gửi bom | Vệt tấn công ngắn và cột cảnh báo tại vị trí server cung cấp | Cast + cảnh báo bom riêng biệt |
 | Làm chậm | Mảnh băng quanh giỏ, icon thời gian hiệu lực | Ice cast; tiếng tan băng khi kết thúc |
-| Giỏ nam châm | Giỏ rộng thêm 40%, quầng sáng và đếm ngược 5 giây; biểu tượng nam châm | Cue kích hoạt/kết thúc ngắn |
+| Giỏ nam châm | Biểu tượng nam châm gắn trên giỏ, quả mục tiêu gần giỏ chuyển hướng nhẹ và đếm ngược 5 giây | Cue kích hoạt/kết thúc ngắn |
 | Đổi mục tiêu | Icon đổi bằng chuyển động ngắn, nhãn tên quả dễ đọc | Một cue thông báo nhẹ |
 | Đếm ngược/bắt đầu | 3–2–1–Bắt đầu, mỗi số chỉ xuất hiện một lần | Tick/tick/tick/go |
 | Còn 10 giây | Đồng hồ nổi bật hơn, cảnh báo có tiết chế | Cue 10 giây, các tick cuối không lấn SFX |

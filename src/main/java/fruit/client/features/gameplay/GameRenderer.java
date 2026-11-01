@@ -45,7 +45,6 @@ public final class GameRenderer {
     private int prevOtherScore;
     private long myScoreFlashUntil;
     private long otherScoreFlashUntil;
-    private String prevTarget = "";
     private final ClientState model;
     private final ClientFeedback feedback;
 
@@ -87,21 +86,18 @@ public final class GameRenderer {
         g.fillText(clock, clockX, 32);
         canvasText(g, "CÒN LẠI", clockX, 46, 9, Color.web("#ffecc5"), true);
         String target = str(model.state, "target", "APPLE");
-        // Detect target change → pulse
-        if (!target.equals(prevTarget)) {
-            feedback.targetPulseStart = now;
-            prevTarget = target;
-        }
         double pulseSec = (now - feedback.targetPulseStart) / 1e9;
         double pulseScale =
-                !feedback.audio.reducedMotion && pulseSec < 0.4
-                        ? (1.0 + 0.15 * Math.sin(pulseSec * Math.PI / 0.4))
+                !feedback.audio.reducedMotion && pulseSec < .35
+                        ? (1.0 + .10 * Math.sin(pulseSec * Math.PI / .35))
                         : 1.0;
         drawCenterCard(g, clockX - clockW / 2, 64, clockW, 62, Color.web("#fff0c9"));
         canvasText(g, "MỤC TIÊU", clockX, 81, 10, C_INK, true);
+        drawTargetSparkles(g, clockX, 104, pulseSec);
         sprite(g, target, clockX, 104, 1.6 * pulseScale);
         drawBoard(g, me, left, topY, boardW, boardH, true, now);
         drawBoard(g, other, left + boardW + gap, topY, boardW, boardH, false, now);
+        drawTargetAnnouncement(g, w / 2, topY, pulseSec);
         for (CatchEffect fx : feedback.effects) {
             double age = (now - fx.born) / 1e9;
             if (!feedback.audio.reducedMotion
@@ -150,7 +146,7 @@ public final class GameRenderer {
                     C_INK,
                     true);
         }
-        int[] costs = {30, 50, 70};
+        int[] costs = {30, 50, 90};
         double cooldown = number(me, "cooldown");
         boolean playing = str(model.state, "phase").equals("PLAYING");
         int myEnergy = integer(me, "energy");
@@ -187,6 +183,36 @@ public final class GameRenderer {
         g.fillRect(5, 5, w - 10, h - 10);
         if (GameArt.frameImage() != null) GameArt.paintReferenceFrame(g, w, h, 10);
         else woodFrame(g, w, h);
+        g.restore();
+    }
+
+    private void drawTargetSparkles(GraphicsContext g, double x, double y, double age) {
+        if (feedback.audio.reducedMotion || age < 0 || age >= .55) return;
+        double fade = age < .22 ? 1 : Math.max(0, 1 - (age - .22) / .33);
+        g.save();
+        for (int i = 0; i < 10; i++) {
+            double angle = i * Math.PI * 2 / 10 + age * 4;
+            double radius = 23 + i % 3 * 5 + age * 11;
+            double px = Math.rint(x + Math.cos(angle) * radius);
+            double py = Math.rint(y + Math.sin(angle) * radius);
+            g.setFill((i % 2 == 0 ? Color.web("#fff8bf") : Color.web("#f4b849")).deriveColor(0, 1, 1, fade));
+            double size = i % 3 == 0 ? 5 : 3;
+            g.fillRect(px - size / 2, py - size / 2, size, size);
+        }
+        g.restore();
+    }
+
+    private void drawTargetAnnouncement(GraphicsContext g, double x, double boardTop, double age) {
+        if (age < 0 || age >= 1) return;
+        double opacity = age < .12 ? age / .12 : age < .72 ? 1 : Math.max(0, (1 - age) / .28);
+        double y = boardTop + 30 - Math.min(age, .22) * 18;
+        g.save();
+        g.setFill(Color.web("#fff2c9", .88 * opacity));
+        g.fillRoundRect(x - 72, y - 19, 144, 26, 5, 5);
+        g.setStroke(Color.web("#81502b", opacity));
+        g.setLineWidth(2);
+        g.strokeRoundRect(x - 72, y - 19, 144, 26, 5, 5);
+        canvasText(g, "MỤC TIÊU MỚI!", x, y, 12, C_LIME.deriveColor(0, 1, 1, opacity), true);
         g.restore();
     }
 
@@ -312,7 +338,10 @@ public final class GameRenderer {
         for (Map<String, Object> object : maps(p.get("objects"))) {
             double ox = number(object, "x"), oy = number(object, "y");
             Map<String, Object> prev = oldDrops.get(integer(object, "id"));
-            if (prev != null) oy = number(prev, "y") + (oy - number(prev, "y")) * blend;
+            if (prev != null) {
+                ox = number(prev, "x") + (ox - number(prev, "x")) * blend;
+                oy = number(prev, "y") + (oy - number(prev, "y")) * blend;
+            }
             // Server positions keep their full 800x600 mapping; art stays square.
             g.save();
             g.translate(ox, oy);
@@ -326,19 +355,12 @@ public final class GameRenderer {
                 !feedback.audio.reducedMotion && hit != null && hit.delta > 0 && age < .22
                         ? -Math.sin(age / .22 * Math.PI) * 7
                         : 0;
-        double basketWidth =
-                p.containsKey("basketWidth")
-                        ? number(p, "basketWidth")
-                        : number(p, "magnet") > 0 ? 140 : 100;
+        double basketWidth = number(p, "basketWidth", 100);
         g.save();
         g.translate(bx, 535 + bounce);
-        g.scale(basketWidth / 100, (contentW / 800) / (contentH / 600));
-        if (number(p, "magnet") > 0) {
-            g.setStroke(Color.web("#80e4d2", .85));
-            g.setLineWidth(2);
-            g.strokeOval(-58, -33, 116, 80);
-        }
+        g.scale(1, (contentW / 800) / (contentH / 600));
         basket(g, 0, 0, own, number(p, "freeze") > 0);
+        if (number(p, "magnet") > 0) drawIcon(g, "MAGNET", 37, -20, 28);
         g.restore();
         if (number(p, "freeze") > 0) {
             g.setFill(Color.web("#fff4d9", .95));
