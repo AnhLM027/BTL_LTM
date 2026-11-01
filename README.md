@@ -1,176 +1,152 @@
 # Fruit Battle Online
 
-> Game đối kháng 1v1 bắt hoa quả, xây dựng bằng Java Swing, TCP socket và MySQL.
+Game đối kháng 1v1 bằng JavaFX, TCP Socket và MySQL. Giao diện theo ảnh mẫu dùng cảnh vườn trời xanh, khung gỗ có lá/hoa, chân dung nông dân, đồng hồ vàng và hai sân phủ rộng. Hình, sprite và chữ tiếng Việt được đóng gói sẵn. Có 22 SFX cùng hai nhạc nền chiptune riêng của dự án; game không tải hình/âm thanh lúc chơi. Luật chơi đầy đủ nằm trong [GAME.md](GAME.md).
 
-Fruit Battle Online là trò chơi thời gian thực dành cho hai người chơi. Mỗi trận kéo dài 30 giây; client chịu trách nhiệm hiển thị và gửi thao tác, còn server là nguồn dữ liệu chính để xác thực va chạm, tính điểm và đồng bộ trạng thái trận đấu.
+## Chạy trên Windows
 
-## Tính năng chính
+Cần **JDK 21+** và **MySQL 8.0.16+** đang chạy ở cổng 3306. JavaFX 21.0.8 được lấy từ bộ nhớ đệm Maven; script tải các JAR từ Maven Central nếu máy chưa có.
 
-- Đăng ký, đăng nhập và phân quyền `PLAYER` / `ADMIN`.
-- Sảnh chính, tạo phòng, mời người chơi và sẵn sàng vào trận.
-- Hai chế độ chơi: `CLASSIC` và `ORDER`.
-- Đồng bộ trận đấu qua TCP với message JSON.
-- Server xác thực `CATCH_EVENT`, chống gửi lặp và tự tính điểm.
-- Hiển thị hoa quả, bom, combo, thời gian và kết quả trận.
-- Hồ sơ, lịch sử trận, xếp hạng và quản trị tài khoản.
-- Hỗ trợ reconnect/rejoin trận đang diễn ra theo snapshot server.
+Mở PowerShell ở thư mục dự án, chạy server trước:
 
-## Luật chơi
+```powershell
+powershell -ExecutionPolicy Bypass -File .\run.ps1 -Mode server
+```
 
-### CLASSIC — Hứng né bom
+Mở hai cửa sổ PowerShell khác, mỗi cửa sổ chạy một client:
 
-- Server tạo 16 quả thường và 4 quả bom.
-- Người chơi chỉ điều khiển một giỏ bằng phím `←` và `→`.
-- Hứng quả thường: `+10` điểm.
-- Hứng bom: `-10` điểm.
-- Nhịp trận gồm 3 giai đoạn: khởi động, tăng tốc và tốc độ tối đa.
-  Giữa hai giai đoạn có 2,2 giây không spawn vật thể; chỉ khi vật thể
-  trước đó đã rơi hết, client mới hiển thị thông báo tăng tốc và đếm ngược.
+```powershell
+powershell -ExecutionPolicy Bypass -File .\run.ps1 -Mode client
+```
 
-### ORDER — Hứng theo đơn hàng
+Đăng ký hai tài khoản khác nhau, đăng nhập rồi bấm **Tìm trận** ở cả hai cửa sổ. Server tự ghép cặp và đếm ngược 3 giây.
 
-- Server chọn 3 loại quả khác nhau làm đơn hàng của trận.
-- Server tạo 20 vật thể gồm quả thuộc đơn và quả ngoài đơn.
-- Hứng quả thuộc đơn: `+10` điểm.
-- Hứng quả ngoài đơn: `-5` điểm.
-- Ba loại quả mục tiêu được hiển thị cố định trong giao diện gameplay.
+Chơi qua mạng LAN: chạy server trên một máy, nhập IP của máy đó ở màn hình đăng nhập trên hai client. Cổng mặc định là **5555**; có thể đổi bằng `-Port 6000` ở cả server và client. Máy chạy server cần cho phép kết nối TCP vào cổng đã chọn.
 
-### Combo
+```powershell
+powershell -ExecutionPolicy Bypass -File .\run.ps1 -Mode client -HostName 192.168.1.10 -Port 5555
+```
 
-Mỗi lần hứng đúng liên tiếp làm tăng combo. Cứ đủ 5 lần hứng đúng, server phát sinh combo bonus và gửi lại trong `SCORE_UPDATE`. Client không tự quyết định điểm hoặc bonus.
+## MySQL
 
-## Kiến trúc
+Server tự tạo database `fruit_battle` và các bảng khi khởi động. Cấu hình mặc định theo yêu cầu dự án:
 
-~~~text
-┌──────────────────────┐       TCP / JSON       ┌──────────────────────┐
-│ Java Swing Client    │ <────────────────────> │ Java TCP Game Server │
-│ Login, lobby, game   │                        │ Auth, room, match    │
-└──────────────────────┘                        └──────────┬───────────┘
-                                                           │ JDBC
-                                                           ▼
-                                                  ┌────────────────────┐
-                                                  │ MySQL               │
-                                                  │ account, player,    │
-                                                  │ room, game_match,   │
-                                                  │ fruit_spawn, score  │
-                                                  └────────────────────┘
-~~~
+| Thuộc tính | Giá trị |
+|---|---|
+| JDBC URL | `jdbc:mysql://localhost:3306/fruit_battle` |
+| User | `root` |
+| Password | `123456` |
 
-Server là nơi duy nhất có quyền quyết định điểm, kết quả trận, trạng thái phòng và dữ liệu thống kê.
+Cấu hình và vòng đời kết nối nằm trong `src/main/java/fruit/server/infrastructure/persistence/DatabaseConnection.java`; `Store` phụ trách truy vấn, transaction và lưu dữ liệu. Có thể ghi đè cấu hình trước khi chạy server:
 
-## Công nghệ
+```powershell
+$env:FRUIT_DB_URL = 'jdbc:mysql://localhost:3306/fruit_battle?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Bangkok'
+$env:FRUIT_DB_USER = 'root'
+$env:FRUIT_DB_PASSWORD = '123456'
+$env:FRUIT_ADMIN_PASSWORD = 'MatKhauAdminCuaBan'
+powershell -ExecutionPolicy Bypass -File .\run.ps1 -Mode server
+```
 
-- Java 17+.
-- Java Swing/AWT cho giao diện desktop.
-- TCP socket và JSON message.
-- MySQL 8+.
-- JDBC Connector/J.
-- Maven hoặc cấu hình thư viện tương đương trong IDE.
+Tài khoản quản trị ban đầu là `admin`. Nếu không đặt `FRUIT_ADMIN_PASSWORD`, server sinh mật khẩu ngẫu nhiên và in **một lần khi tạo admin**. Các lần chạy sau dùng tài khoản đã lưu. Mật khẩu tài khoản game được băm PBKDF2 với salt riêng; không lưu mật khẩu đăng nhập dạng rõ.
 
-## Cấu trúc thư mục
+Trong bản đã chạy kiểm chứng trên máy này, mật khẩu admin ban đầu nằm trong `target/server.log`.
 
-~~~text
-FruitBattleOnline/
-├── database/
-│   └── schema.sql
-├── src/src/Client/       # Main client và các màn hình Swing
-├── src/src/Server/       # TCP server, handler, service, repository
-├── src/src/Shared/       # Model, enum và protocol dùng chung
-├── src/src/Client/assets/ # Background, fruit, basket và icon
-└── README.md
-~~~
+Schema có **đúng 4 bảng nghiệp vụ**: `accounts`, `player_stats`, `matches`, `match_players`. Xem [DATABASE.md](DATABASE.md) và [DDL](database/fruit_battle_schema.sql).
 
-## Khởi tạo cơ sở dữ liệu
+Chạy `run.ps1 -Mode database` để tạo mới hoặc kiểm tra cấu trúc 4 bảng hiện tại. Mã chuyển đổi từ bản 2/6 bảng đã được dọn sau khi database thật chuyển xong. Các tệp SQL sao lưu vẫn nằm trong `data/backups`. Database có cấu trúc khác sẽ được báo lỗi, không tự chuyển hoặc xóa dữ liệu.
 
-1. Tạo database và chạy toàn bộ `database/schema.sql` bằng MySQL 8+.
-2. Schema tạo các bảng tài khoản, người chơi, phòng, trận đấu, vật thể rơi, điểm số, lịch sử và bảng xếp hạng.
-3. Tạo tài khoản mẫu:
+Để thử trên máy không cài MySQL, có thể chủ động chọn `-LocalStore`; khi đó dữ liệu được lưu trong thư mục `data`. Chế độ mặc định luôn dùng MySQL và báo lỗi nếu kết nối thất bại.
 
-~~~sql
--- Mật khẩu mẫu của các tài khoản: 123456
--- Tài khoản ADMIN chỉ nằm trong bảng account.
--- PLAYER tương ứng với các bản ghi trong account và player.
-~~~
+## Điều khiển và luật chính
 
-Có thể dùng seed SQL đi kèm schema hoặc tạo tài khoản bằng chức năng đăng ký. Không lưu hoặc gửi `password_hash` về client.
+| Phím | Tác dụng |
+|---|---|
+| ← / → | Di chuyển giỏ |
+| 1 | Gửi bom — 30 năng lượng |
+| 2 | Làm chậm giỏ đối thủ 40% trong 3 giây — 50 năng lượng |
+| 3 | Giỏ nam châm: tăng vùng hứng của chính mình 40% trong 5 giây, áp dụng cả quả sai và bom — 70 năng lượng |
+| F8 | Tắt/bật toàn bộ âm thanh |
 
-## Cấu hình kết nối
+Nút **Âm thanh** mở ba thanh âm lượng **Chung / Nhạc nền / Hiệu ứng**, cùng tùy chọn giảm chuyển động và rung sân. Các lựa chọn được lưu tại `data/client-settings.properties`. Không có thiết bị âm thanh vẫn chơi được.
 
-Giá trị mặc định trong server:
+Hứng quả có điểm nổi và particle; bom có nổ/rung riêng sân; làm chậm có băng quanh giỏ; nam châm làm giỏ rộng hơn, có quầng sáng và đếm ngược; combo và kết quả có cue riêng. Những phản hồi này lấy sự kiện từ server. Đăng nhập lại không phát lại các tiếng hứng quả cũ.
 
-~~~text
-JDBC URL : jdbc:mysql://localhost:3306/fruit_battle_online
-User     : root
-Password : 123456
-Port     : 12345
-~~~
+Mỗi trận 60 giây. Hứng đúng mục tiêu +10 điểm và +10 năng lượng; sai −5 điểm; bom −10 điểm. Mỗi 5 combo thưởng 20 điểm. Bỏ lỡ quả không làm mất combo. Mục tiêu đổi mỗi 15 giây; độ khó tăng sau 20 và 40 giây. Năng lượng tối đa 100; hồi chiêu chung 6 giây.
 
-Nên thay đổi mật khẩu MySQL trong môi trường thực tế. Có thể ghi đè cấu hình bằng biến môi trường hoặc tham số JVM theo lớp `DatabaseConfig` và cấu hình server hiện tại.
+Đăng nhập lại sau mất kết nối để tiếp tục trận: đồng hồ trận vẫn chạy trên server. Khi trận đã kết thúc, client nhận kết quả.
 
-## Chạy ứng dụng
+## Mã nguồn
 
-### IntelliJ IDEA
+Code được tổ chức theo tính năng trong hai nhánh **client** và **server**. Các lớp Actions/Service xử lý logic; Screen dựng giao diện. Chi tiết ở [FEATURE_REFACTOR.md](FEATURE_REFACTOR.md).
 
-1. Mở project và bảo đảm JDK cùng MySQL Connector/J đã được cấu hình.
-2. Khởi động `Server.ServerMain` trước.
-3. Khởi động một hoặc hai instance `Client.ClientMain`.
-4. Đăng nhập bằng hai tài khoản khác nhau, tạo phòng, mời đối thủ, sẵn sàng và bắt đầu trận.
+```text
+src/main/java/fruit/
+├── common/                         Protocol, MessageData
+├── client/
+│   ├── Client.java                 Entry point JavaFX
+│   ├── application/                Controller, state, view port, cửa sổ và điều hướng
+│   ├── features/
+│   │   ├── accounts/               AccountActions, LoginScreen, ProfileScreen
+│   │   ├── matchmaking/            MatchmakingActions
+│   │   ├── lobby/                  LobbyScreen
+│   │   ├── gameplay/               GameplayActions, GameScreen, GameRenderer, feedback
+│   │   ├── results/                ResultScreen
+│   │   ├── history/                HistoryScreen
+│   │   ├── leaderboard/            LeaderboardScreen
+│   │   ├── admin/                  AdminActions, AdminScreen
+│   │   ├── settings/               ClientAudio, AudioSettingsDialog
+│   │   └── help/                   HelpDialog
+│   ├── infrastructure/network/     ClientConnection
+│   └── shared/                     ui: ảnh/font/theme/control, preview: DemoData
+└── server/
+    ├── Server.java                 Tham số chạy, khởi động và console
+    ├── application/                GameServer, ServerDisplay
+    ├── features/
+    │   ├── accounts/               User, AccountService, AccountRepository
+    │   ├── matchmaking/            MatchmakingService
+    │   ├── matches/                Match, Player, Drop, MatchRepository
+    │   ├── statistics/             StatisticsService: history/leaderboard
+    │   └── admin/                  AdminService
+    └── infrastructure/
+    │   ├── network/                Session
+    │   └── persistence/            Store, kết nối/schema/setup
+```
 
-### Dòng lệnh
+Client gửi thao tác, server tính toán trạng thái. Điểm, va chạm, năng lượng và kết quả đều do server xác thực. Mỗi message là **một object JSON UTF-8 kết thúc bằng ký tự xuống dòng**, dùng `Socket`, `ServerSocket`, reader và writer thông thường. Ví dụ:
 
-Biên dịch toàn bộ source theo cấu hình JDK/IDE, sau đó chạy server trước client. Client mặc định kết nối `127.0.0.1:12345`; nếu server chạy ở máy khác, cập nhật cấu hình TCP của client.
+```json
+{"type":"PLAYER_MOVE","direction":-1}
+{"type":"USE_SKILL","skill":1}
+{"type":"MATCH_FIND"}
+```
 
-## Luồng gameplay
+## Build và kiểm tra
 
-~~~text
-LOGIN
-  → ROOM_CREATE / ROOM_INVITE / ROOM_ACCEPT
-  → MATCH_READY
-  → MATCH_PREPARE
-  → MATCH_START
-  → FRUIT_SPAWN ... CATCH_EVENT
-  → SCORE_UPDATE
-  → MATCH_RESULT
-  → quay về LobbyScreen
-~~~
+```powershell
+powershell -ExecutionPolicy Bypass -File .\run.ps1 -Mode build
+powershell -ExecutionPolicy Bypass -File .\run.ps1 -Mode test
+powershell -ExecutionPolicy Bypass -File .\run.ps1 -Mode test -MySqlTest
+powershell -ExecutionPolicy Bypass -File .\run.ps1 -Mode ui-test
+powershell -ExecutionPolicy Bypass -File .\run.ps1 -Mode presentation-test
+powershell -ExecutionPolicy Bypass -File .\run.ps1 -Mode presentation-test -AudioDevice
+```
 
-Các message quan trọng:
+Test dùng TCP thật và dữ liệu riêng, gồm cả trận đủ 60 giây nên cần chờ hơn một phút. File kiểm tra nằm ở [GameTest.java](src/test/java/fruit/server/application/GameTest.java). `-MySqlTest` tạo database kiểm tra riêng, không ghi vào tài khoản của người chơi. `ui-test` mở cửa sổ JavaFX và thao tác bằng API kiểm tra chuẩn, có mã tại [ClientTest.java](src/test/java/fruit/server/application/ClientTest.java).
 
-- `MATCH_PREPARE`: mode, thông tin trận và danh sách mục tiêu của `ORDER`.
-- `FRUIT_SPAWN`: `fruitInstanceId`, `fruitId`, `isBomb`, `x`, `spawnOffsetMs`, `fallDurationMs`.
-- `CATCH_EVENT`: chỉ gồm `matchId` và `fruitInstanceId`; client không gửi điểm.
-- `SCORE_UPDATE`: điểm chính thức, `wasCorrect`, `comboCount`, `comboBonus`.
-- `MATCH_REJOIN`: snapshot để khôi phục trận sau khi đăng nhập lại.
-- `MATCH_RESULT`: kết quả, điểm cuối và dữ liệu lịch sử.
+`presentation-test` kiểm tra tài nguyên, chữ tiếng Việt, WAV, chống lặp sự kiện và lưu thiết lập. `-AudioDevice` phát tiếng thử để kiểm tra mixer thật, chuyển nhạc, mute và giới hạn clip. `ui-test` mở game và thao tác các màn hình, kỹ năng cùng bảng âm lượng.
 
-## Tọa độ và hiển thị
+Nguồn hình, font, âm thanh và cách tái tạo asset được ghi tại [ASSET_CREDITS.md](ASSET_CREDITS.md). Tài nguyên nằm trong `src/main/resources/fruit`; script chạy và Maven đều đưa chúng vào classpath.
 
-- Vùng logic gameplay luôn là `800 × 600`.
-- JPanel có thể resize; client scale theo kích thước thực tế nhưng không thay đổi tọa độ server.
-- Giỏ di chuyển trong vùng logic, không vượt ra ngoài màn hình.
-- Asset được tải từ thư mục resource; khi thiếu asset, client sử dụng fallback rõ ràng thay vì làm hỏng trận.
+Có thể mở `pom.xml` bằng IntelliJ IDEA và dùng Maven:
 
-## Bảo mật và tính nhất quán
+```text
+mvn compile
+mvn exec:java -Dexec.mainClass=fruit.server.Server
+mvn javafx:run
+mvn test
+```
 
-- Server kiểm tra quyền trước mọi thao tác quản trị `ADMIN_*`.
-- Server xác thực người gửi, trận, vật thể, thời gian và trạng thái trước khi chấp nhận `CATCH_EVENT`.
-- Event đã xử lý không được ghi điểm lần hai.
-- `password_hash` chỉ tồn tại phía server/database.
-- Các thao tác kết thúc trận và cập nhật lịch sử được thực hiện trong transaction.
+Ảnh kiểm tra giao diện có thể tạo bằng:
 
-## Kiểm thử đề xuất
-
-- Đăng ký/đăng nhập bằng hai client.
-- Tạo phòng, mời, chấp nhận, từ chối và timeout.
-- Kiểm tra cả `CLASSIC` và `ORDER`.
-- Hứng đúng, hứng sai, hứng bom và gửi lặp `CATCH_EVENT`.
-- Kiểm tra combo, điểm cuối, lịch sử và leaderboard.
-- Ngắt kết nối giữa trận, đăng nhập lại và kiểm tra rejoin snapshot.
-- Khởi động lại server khi trận ở `PLAYING` hoặc `FINALIZING`.
-- Gửi `ADMIN_*` từ tài khoản `PLAYER` và bảo đảm server từ chối.
-
-## Trạng thái phát triển
-
-Nhánh phát triển hiện tại: `MA_Hoai`.
-
-Khi triển khai production, hãy thay mật khẩu mặc định, cấu hình host/port riêng và bật log server ở mức phù hợp.
+```powershell
+powershell -ExecutionPolicy Bypass -File .\run.ps1 -Mode client -Snapshot target\game.png -Screen game
+```
