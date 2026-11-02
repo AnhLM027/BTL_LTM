@@ -112,7 +112,7 @@ public final class HelpDialog {
                                 "90 năng lượng",
                                 "Trong 5 giây, nam châm hút những quả đúng gần giỏ"),
                         text(
-                                "HỒI CHIÊU CHUNG / 6 giây · Tấn công không cộng dồn; nam châm hỗ"
+                                "HỒI CHIÊU CHUNG / 5 giây · Tấn công không cộng dồn; nam châm hỗ"
                                     + " trợ giỏ của bạn",
                                 13,
                                 LIME),

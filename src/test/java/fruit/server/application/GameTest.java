@@ -126,7 +126,7 @@ public final class GameTest {
         check(
                 opponent.objects.stream().noneMatch(drop -> drop.kind.equals("BOMB")),
                 "Bomb is delayed until warning expires");
-        near(player.cooldown, 6, .001, "All skills use six second shared cooldown");
+        near(player.cooldown, 5, .001, "All skills use five second shared cooldown");
         int afterBomb = player.skills;
         match.skill(player, 2);
         check(

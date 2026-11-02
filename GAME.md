@@ -151,12 +151,12 @@ Trò chơi có 3 kỹ năng chính. Người chơi sử dụng phím `1`, `2`, `
 - Gắn nam châm lên giỏ trong 5 giây; chiều rộng vùng hứng giữ nguyên 100 đơn vị.
 - Chỉ quả đang là mục tiêu trong bán kính 120 đơn vị mới bị kéo nhẹ theo chiều ngang về tâm giỏ; người chơi vẫn phải tự di chuyển để hứng.
 - Bom và quả sai giữ quỹ đạo bình thường; kỹ năng không thay đổi tốc độ rơi.
-- Có thể dùng khi đang chịu kỹ năng tấn công. Hồi chiêu chung 6 giây, không cộng dồn hay làm mới hiệu lực.
+- Có thể dùng khi đang chịu kỹ năng tấn công. Hồi chiêu chung 5 giây, không cộng dồn hay làm mới hiệu lực.
 
 ### 4.4. Quy tắc sử dụng kỹ năng
 
 - Chỉ sử dụng khi đủ năng lượng.
-- Thời gian hồi chiêu chung là 6 giây.
+- Thời gian hồi chiêu chung là 5 giây.
 - Không thể kích hoạt kỹ năng mới khi kỹ năng trước còn hiệu lực.
 - Hiệu ứng tấn công không cộng dồn. Nam châm là hỗ trợ bản thân và có thể dùng khi đang bị tấn công.
 - Server kiểm tra năng lượng, hồi chiêu và trạng thái trận trước khi xử lý.

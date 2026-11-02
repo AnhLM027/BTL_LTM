@@ -259,7 +259,7 @@ public final class Match {
         double duration = skill == 1 ? 0.65 : skill == 2 ? 3 : 5;
         attacker.energy -= cost;
         attacker.skills++;
-        attacker.cooldown = 6;
+        attacker.cooldown = 5;
         attacker.activeSkill = duration;
         if (skill != 3) victim.incomingSkill = duration;
         if (skill == 1) {

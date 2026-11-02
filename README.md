@@ -70,7 +70,7 @@ Nút **Âm thanh** mở ba thanh âm lượng **Chung / Nhạc nền / Hiệu �
 
 Hứng quả có điểm nổi và particle; bom có nổ/rung riêng sân; làm chậm có băng quanh giỏ; nam châm làm giỏ rộng hơn, có quầng sáng và đếm ngược; combo và kết quả có cue riêng. Những phản hồi này lấy sự kiện từ server. Đăng nhập lại không phát lại các tiếng hứng quả cũ.
 
-Mỗi trận 60 giây. Hứng đúng mục tiêu +10 điểm và +10 năng lượng; sai −5 điểm; bom −10 điểm. Mỗi 5 combo thưởng 20 điểm. Bỏ lỡ quả không làm mất combo. Mục tiêu đổi mỗi 15 giây; độ khó tăng sau 20 và 40 giây. Năng lượng tối đa 100; hồi chiêu chung 6 giây.
+Mỗi trận 60 giây. Hứng đúng mục tiêu +10 điểm và +10 năng lượng; sai −5 điểm; bom −10 điểm. Mỗi 5 combo thưởng 20 điểm. Bỏ lỡ quả không làm mất combo. Mục tiêu đổi mỗi 15 giây; độ khó tăng sau 20 và 40 giây. Năng lượng tối đa 100; hồi chiêu chung 5 giây.
 
 Đăng nhập lại sau mất kết nối để tiếp tục trận: đồng hồ trận vẫn chạy trên server. Khi trận đã kết thúc, client nhận kết quả.
 

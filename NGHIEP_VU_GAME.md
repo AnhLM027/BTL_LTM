@@ -168,7 +168,7 @@ Mục tiêu được chọn trong ba loại: táo, chuối và nho. Hai người
 
 - Trận đang thi đấu, chưa hết giờ và chưa kết thúc.
 - Người dùng có đủ năng lượng.
-- Hết thời gian hồi chiêu chung 6 giây và kỹ năng trước của người dùng đã hết hiệu lực.
+- Hết thời gian hồi chiêu chung 5 giây và kỹ năng trước của người dùng đã hết hiệu lực.
 - Với kỹ năng 1/2, đối thủ không đang chịu một hiệu ứng tấn công khác. Kỹ năng 3 tác động lên bản thân, dùng được cả khi đang chịu tấn công.
 
 Khi yêu cầu hợp lệ, hệ thống trừ năng lượng đúng một lần, tăng bộ đếm sử dụng kỹ năng, kích hoạt hiệu ứng và thông báo cho hai người. Hiệu ứng không cộng dồn. Yêu cầu không hợp lệ bị từ chối, không trừ năng lượng và không tăng số lần sử dụng.
