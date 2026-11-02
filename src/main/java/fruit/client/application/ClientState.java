@@ -11,7 +11,7 @@ import java.util.Map;
  */
 public final class ClientState {
     public String screen = "login";
-    public String host = "localhost";
+    public String host = "26.207.133.220";
     public String password = "";
     public String username = "";
     public int port = 5555;

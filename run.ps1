@@ -1,7 +1,7 @@
 param(
     [ValidateSet('build','server','client','database','test','ui-test','presentation-test')][string]$Mode = 'client',
     [int]$Port = 5555,
-    [string]$HostName = 'localhost',
+    [string]$HostName = '26.207.133.220',
     [string]$Snapshot = '',
     [string]$Screen = 'home',
     [switch]$LocalStore,

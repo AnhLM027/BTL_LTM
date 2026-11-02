@@ -76,12 +76,6 @@ public final class LoginScreen {
         form.getChildren()
                 .addAll(formRow("TÀI KHOẢN", ui.userInput), formRow("MẬT KHẨU", ui.passInput));
         if (model.registering) form.getChildren().add(formRow("TÊN HIỂN THỊ", display));
-        ui.hostInput = field("localhost", model.host);
-        ui.portInput = field("5555", String.valueOf(model.port));
-        ui.portInput.setPrefWidth(82);
-        HBox serverFields = new HBox(10, ui.hostInput, ui.portInput);
-        HBox.setHgrow(ui.hostInput, Priority.ALWAYS);
-        form.getChildren().add(formRow("MÁY CHỦ  /  CỔNG", serverFields));
         Button submit =
                 button(
                         model.registering ? "Tạo tài khoản  →" : "Vào vườn đấu  →",
@@ -90,8 +84,8 @@ public final class LoginScreen {
                                 controller.authenticate(
                                         ui.userInput.getText(),
                                         ui.passInput.getText(),
-                                        ui.hostInput.getText(),
-                                        ui.portInput.getText(),
+                                        model.host,
+                                        String.valueOf(model.port),
                                         display.getText()));
         submit.setMaxWidth(Double.MAX_VALUE);
         submit.setDisable(model.authPending || model.connecting);

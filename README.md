@@ -20,7 +20,7 @@ powershell -ExecutionPolicy Bypass -File .\run.ps1 -Mode client
 
 Đăng ký hai tài khoản khác nhau, đăng nhập rồi bấm **Tìm trận** ở cả hai cửa sổ. Server tự ghép cặp và đếm ngược 3 giây.
 
-Chơi qua mạng LAN: chạy server trên một máy, nhập IP của máy đó ở màn hình đăng nhập trên hai client. Cổng mặc định là **5555**; có thể đổi bằng `-Port 6000` ở cả server và client. Máy chạy server cần cho phép kết nối TCP vào cổng đã chọn.
+Client mặc định kết nối đến **26.207.133.220:5555** và không hiển thị ô IP/cổng trên màn đăng nhập. Muốn kết nối đến máy chủ khác, truyền địa chỉ khi khởi động; máy chạy server cần cho phép TCP vào cổng đã chọn.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\run.ps1 -Mode client -HostName 192.168.1.10 -Port 5555

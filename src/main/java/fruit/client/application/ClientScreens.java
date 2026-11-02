@@ -118,8 +118,6 @@ public final class ClientScreens implements ClientView {
     public Label skillStatus;
     public Label savedStatus;
     public Button findButton;
-    public TextField hostInput;
-    public TextField portInput;
     public TextField userInput;
     public PasswordField passInput;
     public int adminTab;
@@ -129,7 +127,7 @@ public final class ClientScreens implements ClientView {
         stage = window;
         loadAssets();
         feedback.audio.preload();
-        model.host = parameters.getOrDefault("host", "localhost");
+        model.host = parameters.getOrDefault("host", "26.207.133.220");
         try {
             model.port = Integer.parseInt(parameters.getOrDefault("port", "5555"));
         } catch (NumberFormatException ignored) {
