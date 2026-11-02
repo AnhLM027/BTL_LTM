@@ -145,7 +145,7 @@ public final class Match {
     }
 
     public double baseSpeed() {
-        return stage == 1 ? 180 : stage == 2 ? 225 : 275;
+        return stage == 1 ? 180 : stage == 2 ? 240 : 300;
     }
 
     public void spawnBase() {
